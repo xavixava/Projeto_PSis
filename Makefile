@@ -7,4 +7,4 @@ chase-server: src/chase-client.c src/chase.h
 	gcc -Wall -pedantic src/server.c -g -o server -lncurses
 
 clean:
-	rm chase-client server src/*.o
+	rm chase-client server 
