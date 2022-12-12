@@ -14,5 +14,4 @@ make
 
 #run client and server in different windows
 ./chase-client
-
 ```
