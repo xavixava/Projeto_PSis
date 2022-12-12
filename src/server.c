@@ -9,6 +9,8 @@
 
 WINDOW * message_win;
 
+typedef enum direction_t {UP, DOWN, LEFT, RIGHT} direction_t;
+
 typedef struct player_position_t{
     int x, y;
     char c;
@@ -35,24 +37,24 @@ void draw_player(WINDOW *win, player_position_t * player, int delete){
 }
 
 void moove_player (player_position_t * player, int direction){
-    if (direction == KEY_UP){
+    if (direction == UP){
         if (player->y  != 1){
             player->y --;
         }
     }
-    if (direction == KEY_DOWN){
+    if (direction == DOWN){
         if (player->y  != WINDOW_SIZE-2){
             player->y ++;
         }
     }
     
 
-    if (direction == KEY_LEFT){
+    if (direction == LEFT){
         if (player->x  != 1){
             player->x --;
         }
     }
-    if (direction == KEY_RIGHT)
+    if (direction == RIGHT)
         if (player->x  != WINDOW_SIZE-2){
             player->x ++;
     }
@@ -71,29 +73,26 @@ int create_socket()
                 exit(-1);
         }
 
-        struct sockaddr_un local_client_addr;
-        local_client_addr.sun_family = AF_UNIX;
-        sprintf(local_client_addr.sun_path, "/tmp/client_sock_%d", getpid());
+        struct sockaddr_un local_addr;
+        local_addr.sun_family = AF_UNIX;
+        strcpy(local_addr.sun_path, SOCK_ADDRESS);
 
-        unlink(local_client_addr.sun_path);
-        int err = bind(sock_fd, (struct sockaddr *)&local_client_addr,
-                                                        sizeof(local_client_addr));
+        unlink(SOCK_ADDRESS);
+        int err = bind(sock_fd, (struct sockaddr *)&local_addr,
+                                                        sizeof(local_addr));
         if(err == -1) {
                 perror("bind");
                 exit(-1);
         }
-
 	return sock_fd;
 }
-
-player_position_t p1;
 
 int main(){
 
 	int fd, n;
+	struct sockaddr_un client_addr;
+        socklen_t client_addr_size = sizeof(struct sockaddr_un);
 	ball_message m;
-	struct sockaddr_un server_addr;
-	int key;
 
 	fd = create_socket();
 
@@ -102,47 +101,24 @@ int main(){
 	keypad(stdscr, TRUE);   /* We get F1, F2 etc..		*/
 	noecho();			    /* Don't echo() while we do getch */
 
-    	/* creates a window and draws a border */
-    	WINDOW * my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
-    	box(my_win, 0 , 0);	
+	/* creates a window and draws a border */
+	WINDOW * my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
+	box(my_win, 0 , 0);	
 	wrefresh(my_win);
-    	keypad(my_win, true);
-    	
+    
 	/* creates a window and draws a border */
 	message_win = newwin(5, WINDOW_SIZE, WINDOW_SIZE, 0);
 	box(message_win, 0 , 0);	
 	wrefresh(message_win);
 	
-        wrefresh(message_win);
+    	while(1){
+	
+		n = recvfrom(fd, &m, sizeof(ball_message), 0, ( struct sockaddr *)&client_addr, &client_addr_size);
+		if(n == -1)perror("Send error(please press ctrl+C)");
+			
+		mvwprintw(message_win, 1,1,"Received: %c %c %c", m.type, m.arg, m.c);
+		wrefresh(message_win);
+	}
 
-    	new_player(&p1, 'y');
-    	m.type = 1;
-	m.arg = 'c';
-	m.c = 'y';
-	draw_player(my_win, &p1, true);
-
-        server_addr.sun_family = AF_UNIX;
-        strcpy(server_addr.sun_path, SOCK_ADDRESS);	
-   
-	n = sendto(fd, &m, sizeof(ball_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
-	if(n == -1)perror("Send error(please press ctrl+C)");
-
-	while(key != 27 && key!= 'q'){
-        	key = wgetch(my_win);		
-        	if (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN){
-            		draw_player(my_win, &p1, false);
-            		moove_player (&p1, key);
-            		draw_player(my_win, &p1, true);
-        	}
-
-        mvwprintw(message_win, 1,1,"%c key pressed", key);
-        wrefresh(message_win);	
-    	}
-
-	m.type = 'c';
-	m.arg = 'd';
-	n = sendto(fd, &m, sizeof(ball_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
-	if(n == -1)perror("Send error(please press ctrl+C)");
-    	
-	return 0;
+    exit(0);
 }
