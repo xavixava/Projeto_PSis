@@ -8,7 +8,7 @@ Since you might have more than 1 player, it creates the need to use threads. Uni
 
 ## Get Started 
 
-````
+```
 #generate both client and server binaries
 make
 
