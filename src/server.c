@@ -93,7 +93,7 @@ int create_socket()
 int search_player(player_position_t vector[], char c)
 {
 	int i;
-	for(i=0; i<MAX_PLAYERS; i++)if(vector[i]==c) return i;
+	for(i=0; i<MAX_PLAYERS; i++)if(vector[i].c==c) return i;
 	return -1;
 }
 
@@ -105,7 +105,7 @@ int main(){
 	ball_message m;
 	player_position_t players[10];
 
-	for(i=0; i<MAX_PLAYERS; i++) players.c = '\0';
+	for(i=0; i<MAX_PLAYERS; i++) players[i].c = '\0';
 	
 	fd = create_socket();
 
@@ -139,7 +139,7 @@ int main(){
 					if(search_player(players, m.c)==-1)
 					{	
 						i=0;
-						while(players[i]!='\0' && i<MAX_PLAYERS) i++;
+						while(players[i].c!='\0' && i<MAX_PLAYERS) i++;
 						players[i].x = WINDOW_SIZE/2;
 						players[i].y = WINDOW_SIZE/2;
 						players[i].c = m.c;
