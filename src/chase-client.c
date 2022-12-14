@@ -1,9 +1,10 @@
 #include <stdlib.h>
 #include <ncurses.h>
-#include<unistd.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <ctype.h>
 
 #include "chase.h"
 
@@ -113,33 +114,76 @@ int main(){
 	box(message_win, 0 , 0);	
 	wrefresh(message_win);
 	
-        wrefresh(message_win);
+    	m.type = 0;
+	
+	do
+	{
+				
+        	mvwprintw(message_win, 1,1,"Choose ur character(Alphabet only)", key);
+        	wrefresh(message_win);	
+    		
+        	key = wgetch(my_win);
+		if('a' < tolower(key) && tolower(key) < 'z')
+		{
+			new_player(&p1, key);
+    			m.type = 0;
+			m.arg = 'c';
+			m.c = key;
+			draw_player(my_win, &p1, true);
 
-    	new_player(&p1, 'y');
-    	m.type = 1;
-	m.arg = 'c';
-	m.c = 'y';
-	draw_player(my_win, &p1, true);
-
-        server_addr.sun_family = AF_UNIX;
-        strcpy(server_addr.sun_path, SOCK_ADDRESS);	
+        		server_addr.sun_family = AF_UNIX;
+        		strcpy(server_addr.sun_path, SOCK_ADDRESS);	
    
-	n = sendto(fd, &m, sizeof(ball_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
-	if(n == -1)perror("Send error(please press ctrl+C)");
-
+			n = sendto(fd, &m, sizeof(ball_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
+			if(n == -1)perror("Sendto error(please press ctrl+C)");
+	
+			n = recv(fd, &m, sizeof(ball_message), 0);
+			if(n == -1)perror("Recv error(please press ctrl+C)");
+			else if (m.type!=2) m.type = 1;
+		}
+	}while(m.type!=1);
+	
 	while(key != 27 && key!= 'q'){
-        	key = wgetch(my_win);		
-        	if (key == KEY_LEFT || key == KEY_RIGHT || key == KEY_UP || key == KEY_DOWN){
-            		draw_player(my_win, &p1, false);
-            		moove_player (&p1, key);
-            		draw_player(my_win, &p1, true);
-        	}
+        	key = wgetch(my_win);
+        	switch(key)
+		{
+			case KEY_LEFT:
+            			m.arg = 'l';
+				draw_player(my_win, &p1, false);
+            			moove_player (&p1, key);
+            			draw_player(my_win, &p1, true);
+			break;
+			
+			case KEY_RIGHT:
+            			m.arg = 'r';
+            			draw_player(my_win, &p1, false);
+            			moove_player (&p1, key);
+            			draw_player(my_win, &p1, true);
+			break;
+			
+			case KEY_UP:
+            			m.arg = 'u';
+            			draw_player(my_win, &p1, false);
+            			moove_player (&p1, key);
+            			draw_player(my_win, &p1, true);
+			break;
+			
+			case KEY_DOWN:
+            			m.arg = 'd';
+            			draw_player(my_win, &p1, false);
+            			moove_player (&p1, key);
+            			draw_player(my_win, &p1, true);
+			break;
 
-        mvwprintw(message_win, 1,1,"%c key pressed", key);
-        wrefresh(message_win);	
+		}
+		n = sendto(fd, &m, sizeof(ball_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
+		if(n == -1)perror("Send error(please press ctrl+C)");
+        	
+        	mvwprintw(message_win, 1,1,"%c key pressed", key);
+        	wrefresh(message_win);	
     	}
 
-	m.type = 'c';
+	m.type = 0; 
 	m.arg = 'd';
 	n = sendto(fd, &m, sizeof(ball_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 	if(n == -1)perror("Send error(please press ctrl+C)");
