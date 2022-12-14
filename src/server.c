@@ -11,8 +11,6 @@
 
 WINDOW * message_win;
 
-typedef enum direction_t {UP, DOWN, LEFT, RIGHT} direction_t;
-
 typedef struct player_position_t{
     int x, y;
     char c;
@@ -97,16 +95,23 @@ int search_player(player_position_t vector[], char c)
 	return -1;
 }
 
+void clear_hp_changes(int vector[])
+{
+	for(i=0; i<MAX_PLAYERS; i++) vector[i]=0;
+}
+
 int main(){
 
-	int fd, i, n, player_count=0;
+	int fd, i, n, player_count=0, hp_changes[MAX_PLAYERS];
 	struct sockaddr_un client_addr;
         socklen_t client_addr_size = sizeof(struct sockaddr_un);
-	ball_message m;
+	client_message cm;
+	server_message sm;
 	player_position_t players[10];
-
-	for(i=0; i<MAX_PLAYERS; i++) players[i].c = '\0';
 	
+	for(i=0; i<MAX_PLAYERS; i++) players[i].c = '\0';
+	clear_hp_changes(hp_changes);
+
 	fd = create_socket();
 
 	initscr();		    	/* Start curses mode 		*/
@@ -126,65 +131,86 @@ int main(){
 	
     	while(1){
 	
-		n = recvfrom(fd, &m, sizeof(ball_message), 0, ( struct sockaddr *)&client_addr, &client_addr_size);
+		n = recvfrom(fd, &cm, sizeof(client_message), 0, ( struct sockaddr *)&client_addr, &client_addr_size);
 		if(n == -1)perror("recv error(please press ctrl+C)");
 			
-		mvwprintw(message_win, 1,1,"Received: %d %c %c", m.type, m.arg, m.c);
+		mvwprintw(message_win, 1,1,"Received: %d %c %c", cm.type, cm.arg, cm.c);
 
-		switch (m.type)
+		switch (cm.type)
 		{
 			case 0:
-				if(m.arg == 'c')
+				if(cm.arg == 'c')
 				{
 					if (player_count == MAX_PLAYERS)
-					{
-						m.arg = 'd'; 
-						n = sendto(fd, &m, sizeof(ball_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
+					{		
+						sm.type = 2;
+						// sm.c = '\0';	
+						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
 					}	
-					else if(search_player(players, m.c)==-1) // non-repeated character
+					else if(search_player(players, cm.c)==-1) // non-repeated character
 					{	
 						i=0;
 						while(players[i].c!='\0' && i<MAX_PLAYERS) i++;
 						players[i].x = WINDOW_SIZE/2;	// todo: add random position
 						players[i].y = WINDOW_SIZE/2;
-						players[i].c = m.c;
+						players[i].c = cm.c;
 						players[i].health_bar = 10;
-						mvwprintw(message_win, 2,1,"player %c joined", m.c);
-						n = sendto(fd, &m, sizeof(ball_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
+						mvwprintw(message_win, 2,1,"player %c joined", cm.c);
+						
+						sm.type = 0;
+						// sm.c = players[i].c;
+						sm.x = players[i].x;
+						sm.y = players[i].y;
+
+						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 						if(n==-1)perror("sendto error");
 						//todo: check if any bot or player is in the place where we started it 
             					draw_player(my_win, &players[i], true);
+						player_count++;
 					}
 					else	// refuse character
 					{
-						m.type = 2;
-						n = sendto(fd, &m, sizeof(ball_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
+						sm.type = 2;
+						// sm.c = cm.c;
+						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 						if(n==-1)perror("sendto error");
 					}	
 				}
-				else if (m.arg == 'd')	// disconect client
+				else if (cm.arg == 'd')	// disconect client
 				{
-					i = search_player(players, m.c);
-					if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", m.c);
+					i = search_player(players, cm.c);
+					if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
 					else 
 					{
             					draw_player(my_win, &players[i], false);
-						mvwprintw(message_win, 2,1,"player %c disconected", m.c);
+						mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
 						players[i].c = '\0';
+						player_count--;
 					}
 				}
 				else mvwprintw(message_win, 2,1,"Message poorly formatted.");
 			break;
 			case 1:
-				i = search_player(players, m.c);
-				if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", m.c);
+				i = search_player(players, cm.c);
+				if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
 				else
 				{
             				draw_player(my_win, &players[i], false);
-            				moove_player (&players[i], m.arg);
+            				moove_player (&players[i], cm.arg);
             				draw_player(my_win, &players[i], true);
-					mvwprintw(message_win, 2,1,"Player %c moved %c.", m.c, m.arg);
-				}			
+					mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
+					
+					sm.type = 3;
+					sm.health = players[i].health_bar;
+					sm.x = players[i].x;
+					sm.y = players[i].y;
+					sm.elements=0;	
+					
+					
+
+					n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
+					if(n==-1)perror("sendto error");
+				}
 			break;
 		}
 		wrefresh(message_win);
