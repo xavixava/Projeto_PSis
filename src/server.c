@@ -165,13 +165,13 @@ void clear_hp_changes(int vector[])
 
 int main(){
 
-	int fd, i, n, player_count=0, bot_count = 0;
+	int fd, i, n, player_count=0, bot_count = 0, prize_count = 0;
 	int temp_x, temp_y, rammed_player;//, prize_val;
 	struct sockaddr_un client_addr;
         socklen_t client_addr_size = sizeof(struct sockaddr_un);
 	client_message cm;
 	server_message sm;
-	player_position_t bots[MAX_BOTS];
+	player_position_t bots[MAX_BOTS], prizes[MAX_PLAYERS];
 	char bot_message[MAX_BOTS];
 
 	srand(time(NULL));
@@ -316,6 +316,17 @@ int main(){
 						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 					if(n==-1)perror("sendto error");
 					}
+				}
+			break;
+			case 2:
+				if(prize_count < 10)
+				{	
+					i = search_player(prizes, '\0');
+					prizes[i].c = cm.arg;
+					prizes[i].x = (rand()%(WINDOW_SIZE-2))+1;	
+					prizes[i].y = (rand()%(WINDOW_SIZE-2))+1;	
+					draw_player(my_win, &prizes[i], true);
+					prize_count++;
 				}
 			break;
 		}
