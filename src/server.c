@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <time.h>
 
 #include "chase.h"
 
@@ -17,10 +18,28 @@ typedef struct player_position_t{
     unsigned int health_bar;
 } player_position_t;
 
-void new_player (player_position_t * player, char c){
-    player->x = WINDOW_SIZE/2;
-    player->y = WINDOW_SIZE/2;
-    player->c = c;
+int check_collision (player_position_t * players, int num_players, int curr_player){
+
+	for(int i=0; i<num_players; i++){
+		if (i!=curr_player){
+			if(players[curr_player].x==players[i].x && players[curr_player].y==players[i].y){
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+
+void new_player (player_position_t * players,  int num_players, int curr_player, char c){
+    
+	srand(time(NULL));
+	do{
+		players[curr_player].x = (rand() % (WINDOW_SIZE-2)) + 1;
+		players[curr_player].y = (rand() % (WINDOW_SIZE-2)) + 1;
+	}while (check_collision(players, num_players, curr_player)==1);
+	
+    players[curr_player].c = c;
+	players[curr_player].health_bar = 10;
 }
 
 void draw_player(WINDOW *win, player_position_t * player, int delete){
@@ -97,8 +116,11 @@ int search_player(player_position_t vector[], char c)
 
 void clear_hp_changes(int vector[])
 {
+	int i;
 	for(i=0; i<MAX_PLAYERS; i++) vector[i]=0;
 }
+
+
 
 int main(){
 
@@ -108,6 +130,8 @@ int main(){
 	client_message cm;
 	server_message sm;
 	player_position_t players[10];
+
+	srand(time(NULL));
 	
 	for(i=0; i<MAX_PLAYERS; i++) players[i].c = '\0';
 	clear_hp_changes(hp_changes);
@@ -151,10 +175,11 @@ int main(){
 					{	
 						i=0;
 						while(players[i].c!='\0' && i<MAX_PLAYERS) i++;
-						players[i].x = WINDOW_SIZE/2;	// todo: add random position
-						players[i].y = WINDOW_SIZE/2;
+						new_player (players,  player_count, i, cm.c);
+						/*players[i].x = rand() % WINDOW_SIZE;	// todo: add random position
+						players[i].y = rand() % WINDOW_SIZE;
 						players[i].c = cm.c;
-						players[i].health_bar = 10;
+						players[i].health_bar = 10;*/
 						mvwprintw(message_win, 2,1,"player %c joined", cm.c);
 						
 						sm.type = 0;
