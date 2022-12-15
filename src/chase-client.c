@@ -105,11 +105,11 @@ int main(){
 	keypad(stdscr, TRUE);   /* We get F1, F2 etc..		*/
 	noecho();			    /* Don't echo() while we do getch */
 
-    	/* creates a window and draws a border */
-    	WINDOW * my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
-    	box(my_win, 0 , 0);	
+    /* creates a window and draws a border */
+    WINDOW * my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
+    box(my_win, 0 , 0);	
 	wrefresh(my_win);
-    	keypad(my_win, true);
+    keypad(my_win, true);
     	
 	/* creates a window and draws a border */
 	message_win = newwin(5, WINDOW_SIZE, WINDOW_SIZE, 0);
@@ -149,10 +149,11 @@ int main(){
         mvwprintw(message_win, 1,1,"                                   ");
 	box(message_win, 0 , 0);	
         wrefresh(message_win);	
-	
+	//for(i<player_count){
 	p1.x = sm.x;
 	p1.y = sm.y;
 	draw_player(my_win, &p1, true);
+	//}
 	
 	cm.type = 1;	
 	while(key != 27 && key!= 'q'){
@@ -201,7 +202,7 @@ int main(){
 		p1.health_bar = sm.health;
 		//todo for (i<0; i<sm.elements; i++)
 		
-		mvwprintw(message_win, 1,1,"HP - %d", p1.health_bar);
+		mvwprintw(message_win, 1,1,"HP - %d ", p1.health_bar);
 		
         	wrefresh(message_win);	
 	}

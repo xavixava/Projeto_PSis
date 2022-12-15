@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <time.h>
 
 #include "chase.h"
 
@@ -14,13 +15,53 @@ WINDOW * message_win;
 typedef struct player_position_t{
     int x, y;
     char c;
-    unsigned int health_bar;
+    int health_bar;
 } player_position_t;
 
-void new_player (player_position_t * player, char c){
-    player->x = WINDOW_SIZE/2;
-    player->y = WINDOW_SIZE/2;
-    player->c = c;
+void update_health(player_position_t * player, int collision_type){
+	if(collision_type==-2){ //hit player
+		player->health_bar++;
+	}else if(collision_type==-1){ //got hit by player
+		player->health_bar--;
+	}else if(collision_type==0){ //got hit by bot
+		player->health_bar--;
+	}else if(collision_type>0&&collision_type<=5){ //hit prize	
+		player->health_bar+=collision_type;
+	}
+	if (player->health_bar<=0){ //min health is 0
+		player->health_bar=0;
+	}
+	else 
+	if (player->health_bar>10){ //max health is 10
+		player->health_bar=10;
+	}
+}
+
+
+/*Checks if there's a player/bot in the current player position, 
+returns the player/bot position in the array in case of colision*/
+int check_collision (player_position_t * players_bots, int num_players, int curr_player){
+
+	for(int i=0; i<num_players; i++){
+		if (i!=curr_player){
+			if(players_bots[curr_player].x==players_bots[i].x && players_bots[curr_player].y==players_bots[i].y){
+				return i;
+			}
+		}
+	}
+	return -1;
+}
+
+void new_player (player_position_t * players,  int num_players, int curr_player, char c){
+    
+	srand(time(NULL));
+	do{
+		players[curr_player].x = (rand() % (WINDOW_SIZE-2)) + 1;
+		players[curr_player].y = (rand() % (WINDOW_SIZE-2)) + 1;
+	}while (check_collision(players, num_players, curr_player)!=-1);
+	
+    players[curr_player].c = c;
+	players[curr_player].health_bar = 10;
 }
 
 void draw_player(WINDOW *win, player_position_t * player, int delete){
@@ -97,17 +138,23 @@ int search_player(player_position_t vector[], char c)
 
 void clear_hp_changes(int vector[])
 {
+	int i;
 	for(i=0; i<MAX_PLAYERS; i++) vector[i]=0;
 }
+
+
 
 int main(){
 
 	int fd, i, n, player_count=0, hp_changes[MAX_PLAYERS];
+	int temp_x, temp_y, rammed_player;//, rammed_bot;
 	struct sockaddr_un client_addr;
         socklen_t client_addr_size = sizeof(struct sockaddr_un);
 	client_message cm;
 	server_message sm;
 	player_position_t players[10];
+
+	srand(time(NULL));
 	
 	for(i=0; i<MAX_PLAYERS; i++) players[i].c = '\0';
 	clear_hp_changes(hp_changes);
@@ -151,10 +198,11 @@ int main(){
 					{	
 						i=0;
 						while(players[i].c!='\0' && i<MAX_PLAYERS) i++;
-						players[i].x = WINDOW_SIZE/2;	// todo: add random position
-						players[i].y = WINDOW_SIZE/2;
+						new_player (players,  player_count, i, cm.c);
+						/*players[i].x = rand() % WINDOW_SIZE;	// todo: add random position
+						players[i].y = rand() % WINDOW_SIZE;
 						players[i].c = cm.c;
-						players[i].health_bar = 10;
+						players[i].health_bar = 10;*/
 						mvwprintw(message_win, 2,1,"player %c joined", cm.c);
 						
 						sm.type = 0;
@@ -195,9 +243,35 @@ int main(){
 				if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
 				else
 				{
-            				draw_player(my_win, &players[i], false);
-            				moove_player (&players[i], cm.arg);
-            				draw_player(my_win, &players[i], true);
+					temp_x=players[i].x;
+					temp_y=players[i].y;
+					draw_player(my_win, &players[i], false);
+					moove_player (&players[i], cm.arg);
+					rammed_player=check_collision(players, player_count, i);
+					//rammed_bot=check_collision(bots, num_bots, curr_player)M
+					if(rammed_player!=-1){
+						players[i].x=temp_x;
+						players[i].y=temp_y;
+						update_health(&players[i], -2);
+						update_health(&players[rammed_player], -1);
+					//}else if(ramed_bot!=-1){
+					//	players[i].x=temp_x;
+					//	players[i].y=temp_y;
+					}else{ 
+					//	if(check_prize!=-1){
+					//		prize_val=remove_prize(check_prize);
+					//		update_health(&players[i].health_bar, prize_val);
+					//	}
+					}
+					draw_player(my_win, &players[i], true);
+					
+					/*if (players[i].health_bar==0){
+						draw_player(my_win, &players[i], false);
+						mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
+						players[i].c = '\0';
+						player_count--;
+					}else{*/
+
 					mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
 					
 					sm.type = 3;
@@ -205,7 +279,7 @@ int main(){
 					sm.x = players[i].x;
 					sm.y = players[i].y;
 					sm.elements=0;	
-					
+					//}
 					
 
 					n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
