@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <ncurses.h>
-#include<unistd.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -52,7 +52,7 @@ int check_collision (player_position_t * players_bots, int num_players, int curr
 	return -1;
 }
 
-void new_player (player_position_t * players,  int num_players, int curr_player, char c){
+void new_player (player_position_t * players,  int num_players, int curr_player, char c){ //todo check for bots/prizes
     
 	srand(time(NULL));
 	do{
@@ -146,13 +146,14 @@ void clear_hp_changes(int vector[])
 
 int main(){
 
-	int fd, i, n, player_count=0, hp_changes[MAX_PLAYERS];
+	int fd, i, n, player_count=0, hp_changes[MAX_PLAYERS], bot_count = 0;
 	int temp_x, temp_y, rammed_player;//, rammed_bot;
 	struct sockaddr_un client_addr;
         socklen_t client_addr_size = sizeof(struct sockaddr_un);
 	client_message cm;
 	server_message sm;
-	player_position_t players[10];
+	player_position_t players[MAX_PLAYERS], bots[MAX_PLAYERS];
+	char bot_message[MAX_PLAYERS];
 
 	srand(time(NULL));
 	
@@ -236,54 +237,80 @@ int main(){
 						player_count--;
 					}
 				}
+				else if(cm.arg == 'b') // bot client conected 
+				{  // todo: add robustnes by saving address and adding verification
+				   // todo: run bot-client from makefile
+                                        bot_count = atoi(&cm.c);
+                                        for(i=0; i<bot_count; i++) 
+					{
+						bots[i].c = '*';
+						bots[i].x = (rand()%(WINDOW_SIZE-2))+1;	
+						bots[i].y = (rand()%(WINDOW_SIZE-2))+1;	
+					}
+                                }
 				else mvwprintw(message_win, 2,1,"Message poorly formatted.");
 			break;
 			case 1:
-				i = search_player(players, cm.c);
-				if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
+				if(cm.arg == 'b') // received a bot_movement message
+                                {
+
+                                        n = recvfrom(fd, &bot_message, bot_count, 0, ( struct sockaddr *)&client_addr, &client_addr_size);
+                                        if(n == -1)perror("recv error(please press ctrl+C)");
+                                        for(i=0; i<bot_count; i++)
+                                        {
+                                                draw_player(my_win, &bots[i], false);
+                                                moove_player (&bots[i], bot_message[i]);
+                                                draw_player(my_win, &bots[i], true);
+						//todo: check for collision after movement
+                                        }
+                                }
 				else
-				{
-					temp_x=players[i].x;
-					temp_y=players[i].y;
-					draw_player(my_win, &players[i], false);
-					moove_player (&players[i], cm.arg);
-					rammed_player=check_collision(players, player_count, i);
-					//rammed_bot=check_collision(bots, num_bots, curr_player)M
-					if(rammed_player!=-1){
-						players[i].x=temp_x;
-						players[i].y=temp_y;
-						update_health(&players[i], -2);
-						update_health(&players[rammed_player], -1);
-					//}else if(ramed_bot!=-1){
-					//	players[i].x=temp_x;
-					//	players[i].y=temp_y;
-					}else{ 
-					//	if(check_prize!=-1){
-					//		prize_val=remove_prize(check_prize);
-					//		update_health(&players[i].health_bar, prize_val);
-					//	}
-					}
-					draw_player(my_win, &players[i], true);
-					
-					/*if (players[i].health_bar==0){
+				{	i = search_player(players, cm.c);
+					if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
+					else
+					{
+						temp_x=players[i].x;
+						temp_y=players[i].y;
 						draw_player(my_win, &players[i], false);
-						mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
-						players[i].c = '\0';
-						player_count--;
-					}else{*/
-
-					mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
+						moove_player (&players[i], cm.arg);
+						rammed_player=check_collision(players, player_count, i);
+						//rammed_bot=check_collision(bots, num_bots, curr_player)M
+						if(rammed_player!=-1){
+							players[i].x=temp_x;
+							players[i].y=temp_y;
+							update_health(&players[i], -2);
+							update_health(&players[rammed_player], -1);
+						//}else if(ramed_bot!=-1){
+						//	players[i].x=temp_x;
+						//	players[i].y=temp_y;
+						}else{ 
+						//	if(check_prize!=-1){
+						//		prize_val=remove_prize(check_prize);
+						//		update_health(&players[i].health_bar, prize_val);
+						//	}
+						}
+						draw_player(my_win, &players[i], true);
 					
-					sm.type = 3;
-					sm.health = players[i].health_bar;
-					sm.x = players[i].x;
-					sm.y = players[i].y;
-					sm.elements=0;	
-					//}
+						/*if (players[i].health_bar==0){
+							draw_player(my_win, &players[i], false);
+							mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
+							players[i].c = '\0';
+							player_count--;
+						}else{*/
+
+						mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
+					
+						sm.type = 3;
+						sm.health = players[i].health_bar;
+						sm.x = players[i].x;
+						sm.y = players[i].y;
+						sm.elements=0;	
+						//}
 					
 
-					n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
+						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 					if(n==-1)perror("sendto error");
+					}
 				}
 			break;
 		}

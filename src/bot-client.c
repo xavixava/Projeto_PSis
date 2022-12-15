@@ -69,7 +69,7 @@ int main(int argc, char **argv)
 	fd = create_socket();
 	
 	cm.type = 0;
-	cm.arg = 'c';
+	cm.arg = 'b';
 	cm.c = '0' + bot_count;	
 
 	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
@@ -105,6 +105,9 @@ int main(int argc, char **argv)
         		}
 		}
 		
+	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
+	if(n == -1)perror("Sendto error(please press ctrl+C)");
+	
 	n = sendto(fd, &bot_vector, bot_count, 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 	if(n == -1)
 	{
