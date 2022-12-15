@@ -4,8 +4,8 @@
 
 // if server sends disconecting then it means it cannot accept more clients
 typedef struct client_message{	//later on define field status messages
-    int type; // 0-conection, 1-movement 
-    char arg;  // conection: c-conecting, d-disconecting; movement: u, d, l, r
+    int type; // 0-conection, 1-movement, 2-prize 
+    char arg;  // conection: c-conecting, d-disconecting; movement: u, d, l, r; prize: value
     char c; //warn which char
 } client_message;
 
