@@ -202,7 +202,7 @@ int main(){
 		p1.health_bar = sm.health;
 		//todo for (i<0; i<sm.elements; i++)
 		
-		mvwprintw(message_win, 1,1,"HP - %d", p1.health_bar);
+		mvwprintw(message_win, 1,1,"HP - %d ", p1.health_bar);
 		
         	wrefresh(message_win);	
 	}
