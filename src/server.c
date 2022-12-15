@@ -97,6 +97,7 @@ int search_player(player_position_t vector[], char c)
 
 void clear_hp_changes(int vector[])
 {
+	int i;
 	for(i=0; i<MAX_PLAYERS; i++) vector[i]=0;
 }
 
