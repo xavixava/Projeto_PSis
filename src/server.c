@@ -8,7 +8,6 @@
 
 #include "chase.h"
 
-
 WINDOW * message_win;
 
 void update_health(player_position_t * player, int collision_type){
@@ -22,7 +21,7 @@ void update_health(player_position_t * player, int collision_type){
 	}else if(collision_type>0&&collision_type<=5){ //hit prize	
 		player->health_bar+=collision_type;
 	}
-
+  
 	if (player->health_bar<=0){ //min health is 0
 		player->health_bar=0;
 	}
@@ -34,6 +33,7 @@ void update_health(player_position_t * player, int collision_type){
 
 /*Checks if there's a player/bot in the current player position, 
 returns the player/bot position in the array in case of colision*/
+
 int check_collision_player (player_position_t * players, int curr_player){
 
 	for(int i=0; i<MAX_PLAYERS; i++){
@@ -165,12 +165,14 @@ void clear_hp_changes(int vector[])
 
 int main(){
 
+
 	int fd, i, n, player_count=0, bot_count = 0, prize_count = 0;
 	int temp_x, temp_y, rammed_player;//, prize_val;
 	struct sockaddr_un client_addr;
         socklen_t client_addr_size = sizeof(struct sockaddr_un);
 	client_message cm;
 	server_message sm;
+
 	player_position_t bots[MAX_BOTS], prizes[MAX_PLAYERS];
 	char bot_message[MAX_BOTS];
 
@@ -231,12 +233,14 @@ int main(){
 					else	// refuse character
 					{
 						sm.type = 2;
+
 						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 						if(n==-1)perror("sendto error");
 					}	
 				}
 				else if (cm.arg == 'd')	// disconect client
 				{
+        
 					i = search_player(sm.players, cm.c);
 					if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
 					else 
@@ -309,6 +313,7 @@ int main(){
 						}else{*/
 
 						mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
+
 						sm.type = 3;
 						sm.player_pos=i;
 						//}
@@ -325,7 +330,9 @@ int main(){
 					prizes[i].c = cm.arg;
 					prizes[i].x = (rand()%(WINDOW_SIZE-2))+1;	
 					prizes[i].y = (rand()%(WINDOW_SIZE-2))+1;	
+
 					draw_player(my_win, &prizes[i], true);
+
 					prize_count++;
 				}
 			break;
