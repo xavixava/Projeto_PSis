@@ -99,6 +99,9 @@ int main(){
 	int key;
 
 	fd = create_socket();
+        
+	server_addr.sun_family = AF_UNIX;
+        strcpy(server_addr.sun_path, SOCK_ADDRESS);	
 
 	initscr();		    	/* Start curses mode 		*/
 	cbreak();				/* Line buffering disabled	*/
@@ -129,9 +132,6 @@ int main(){
     			cm.type = 0;
 			cm.arg = 'c';
 			cm.c = key;
-
-        		server_addr.sun_family = AF_UNIX;
-        		strcpy(server_addr.sun_path, SOCK_ADDRESS);	
    
 			n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 			if(n == -1)perror("Sendto error(please press ctrl+C)");
