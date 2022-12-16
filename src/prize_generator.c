@@ -74,7 +74,7 @@ int main(int argc, char **argv)
 		n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 		if(n==-1)
 		{
-			printf("Server disconected\n");
+			printf("generator: Server disconected\n");
 			break;
 		}
 	}

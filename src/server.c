@@ -325,14 +325,15 @@ int main(){
 					}
 				}
 				else if(cm.arg == 'b') // bot client conected 
-				{  // todo: add robustnes by saving address and adding verification
+				{  
 				   // todo: run bot-client from makefile
-					bot_count = atoi(&cm.c);
+					bot_count = atoi(&cm.c)+1;
 					for(i=0; i<bot_count; i++){ 
-					k=0;
-					while(sm.bots[k].c!='\0' && k<MAX_PRIZES) k++;
-					new_player (&sm, 1, k, '*');
-					draw_player(my_win, &sm.bots[k], true);
+						//k=0; // bots sao criados no inicio, isto nao é necessario
+						//while(sm.bots[k].c!='\0' && k<MAX_PRIZES) k++;
+						//new_player (&sm, 1, k, '*');
+						new_player (&sm, 1, i, '*');
+						draw_player(my_win, &sm.bots[k], true);
 					}
 					mvwprintw(message_win, 2,1,"%d bots joined", bot_count);
 				}
@@ -350,7 +351,9 @@ int main(){
 							draw_player(my_win, &sm.bots[k], false);
 							moove_player (&sm.bots[k], bot_message[k]);
 							rammed_player = check_collision(&sm, 1, i);
-						
+									
+							mvwprintw(message_win, 3,1,"Rammed player %d", rammed_player);
+							
 							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
 								sm.bots[k].x=temp_x;
 								sm.bots[k].y=temp_y;
@@ -361,7 +364,6 @@ int main(){
 								sm.bots[k].y=temp_y;
 							}
 							draw_player(my_win, &sm.bots[k], true);
-							//todo: check for collision after movement
 					}
 				}
 				else // received a player_movement message
