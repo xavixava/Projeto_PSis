@@ -12,5 +12,15 @@ bot-client: src/bot-client.c src/chase.h
 prize-generator: src/prize_generator.c src/chase.h
 	gcc -Wall -pedantic src/prize_generator.c -g -o prize-generator
 
+hard-run:
+	./bot-client /tmp/server_sock 10 &
+	./prize-generator &
+	./server
+
+easy-run:
+	./bot-client /tmp/server_sock 1 &
+	./prize-generator &
+	./server
+
 clean:
 	rm chase-client server 
