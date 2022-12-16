@@ -129,8 +129,11 @@ int main(){
 			cm.c = key;
    
 			n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
-			if(n == -1)perror("Sendto error(please press ctrl+C)");
-	
+			if(n == -1)//perror("Sendto error(please press ctrl+C)");
+			{
+				printf("Server disconected\n");
+				return 0;
+			}
 			n = recv(fd, &sm, sizeof(server_message), 0);
 			if(n == -1)perror("Recv error(please press ctrl+C)");
 			else if(sm.type==1)
@@ -183,10 +186,20 @@ int main(){
 				draw_player(my_win, &sm.players[i], false);
 			}
 		}
+		for(int i=0; i<MAX_PRIZES; i++){ //clear the screen
+			if(sm.prizes[i].c!='\0'){
+				draw_player(my_win, &sm.prizes[i], false);
+			}
+		}
+		for(int i=0; i<MAX_BOTS; i++){ //clear the screen
+			if(sm.bots[i].c!='\0'){
+				draw_player(my_win, &sm.bots[i], false);
+			}
+		}
 		
 		n = recv(fd, &sm, sizeof(server_message), 0);
 		if(n == -1)perror("Recv error(please press ctrl+C)");
-		
+		//mvwprintw(message_win, 1,1,"Received: %d %d", sm.type, sm.player_pos);
 		mvwprintw(message_win, 1,1,"HP - %d ", sm.players[sm.player_pos].health_bar);
         wrefresh(message_win);	
 
@@ -195,12 +208,25 @@ int main(){
 				draw_player(my_win, &sm.players[i], true);
 			}
 		}
+		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
+			if(sm.prizes[i].c!='\0'){
+				draw_player(my_win, &sm.prizes[i], true);
+			}
+		}
+		for(int i=0; i<MAX_BOTS; i++){ //clear the screen
+			if(sm.bots[i].c!='\0'){
+				draw_player(my_win, &sm.bots[i], true);
+			}
+		}
 	}
 
 	cm.type = 0; 
 	cm.arg = 'd';
 	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
-	if(n == -1)perror("Send error(please press ctrl+C)");
-    	
+	if(n == -1)//perror("Send error(please press ctrl+C)");
+	{
+		printf("Server disconected\n");
+		return 0;
+	}	
 	return 0;
 }
