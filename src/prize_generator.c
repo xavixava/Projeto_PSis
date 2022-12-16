@@ -36,6 +36,8 @@ int create_socket()
 	return sock_fd;
 }
 
+// returns a random value between 1 and 5
+
 int generate_prize()
 {
 	return (random()%5)+1;
@@ -57,7 +59,7 @@ int main(int argc, char **argv)
 	cm.arg = '0' + prize;
 	cm.c = '0' + prize;	
 	
-	for(i=0; i<5; i++)
+	for(i=0; i<5; i++) 	// send 5 prizes at the begining of the game
 	{
 		prize = generate_prize();	
 		cm.arg = '0' + prize;
@@ -66,7 +68,7 @@ int main(int argc, char **argv)
 		while(n==-1) n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 	}
 
-    	while (1)
+    	while (1)	// sends prizes every 5 seconds
     	{
         	sleep(5);	
 		prize = generate_prize();	
