@@ -1,7 +1,9 @@
 #define WINDOW_SIZE 20
 #define MAX_PLAYERS 10
+
 #define MAX_BOTS 10
 #define MAX_PRIZES 10
+
 #define SOCK_ADDRESS "/tmp/server_sock"
 #define PRIZE_ADDR i "/tmp/prize_sock"
 
@@ -32,6 +34,6 @@ typedef struct server_message{	//later on define field status messages
     int type; // 0-conection accepted, 1-no more characters, 2-refusing char, 3-movement response
     int player_pos; //position of player recieving the message in the players array
     player_position_t players[MAX_PLAYERS];
-    player_position_t bots[MAX_BOTS];
-    player_position_t prizes[MAX_PRIZES]; // number of elements to be able to receive field status message
+    player_position_t bots[MAX_PLAYERS];
+    player_position_t prizes[MAX_PLAYERS]; // number of elements to be able to receive field status message
 } server_message;

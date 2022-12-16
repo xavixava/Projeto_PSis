@@ -70,7 +70,7 @@ int create_socket()
 
         struct sockaddr_un local_client_addr;
         local_client_addr.sun_family = AF_UNIX;
-        sprintf(local_client_addr.sun_path, "/tmp/client_sock_%d", getpid());
+        sprintf(local_client_addr.sun_path, "/tmp/client_%d", getpid());
 
         unlink(local_client_addr.sun_path);
         int err = bind(sock_fd, (struct sockaddr *)&local_client_addr,
@@ -135,6 +135,7 @@ int main(){
 				return 0;
 			}
 			n = recv(fd, &sm, sizeof(server_message), 0);
+        		mvwprintw(message_win, 3,1,"Received mess type %d", sm.type);
 			if(n == -1)perror("Recv error(please press ctrl+C)");
 			else if(sm.type==1)
 			{
@@ -191,7 +192,7 @@ int main(){
 				draw_player(my_win, &sm.prizes[i], false);
 			//}
 		}
-		for(int i=0; i<MAX_BOTS; i++){ //clear the screen
+		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
 			if(sm.bots[i].c!='\0'){
 				draw_player(my_win, &sm.bots[i], false);
 			}
@@ -213,7 +214,7 @@ int main(){
 				draw_player(my_win, &sm.prizes[i], true);
 			}
 		}
-		for(int i=0; i<MAX_BOTS; i++){ //clear the screen
+		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
 			if(sm.bots[i].c!='\0'){
 				draw_player(my_win, &sm.bots[i], true);
 			}
