@@ -45,14 +45,14 @@ int check_collision (server_message * sm, int element_role, int array_pos){//ele
 				} 
 			}
 		}
-		for(int i=0; i<MAX_PLAYERS; i++){
+		for(int i=0; i<MAX_BOTS; i++){
 			if (sm->bots[i].c!='\0'){
 				if(sm->players[array_pos].x==sm->bots[i].x && sm->players[array_pos].y==sm->bots[i].y){
 					return -1;
 				}
 			}
 		}
-		for(int i=0; i<MAX_PLAYERS; i++){
+		for(int i=0; i<MAX_PRIZES; i++){
 			if (sm->prizes[i].c!='\0'){
 				if(sm->players[array_pos].x==sm->prizes[i].x && sm->players[array_pos].y==sm->prizes[i].y){
 					return i+MAX_PLAYERS;
@@ -70,14 +70,14 @@ int check_collision (server_message * sm, int element_role, int array_pos){//ele
 				}
 			}
 		}
-		for(int i=0; i<MAX_PLAYERS; i++){
+		for(int i=0; i<MAX_BOTS; i++){
 			if (array_pos!=i && sm->bots[i].c!='\0'){
 				if(sm->bots[array_pos].x==sm->bots[i].x && sm->bots[array_pos].y==sm->bots[i].y){
 					return -1;
 				}
 			}
 		}
-		for(int i=0; i<MAX_PLAYERS; i++){
+		for(int i=0; i<MAX_PRIZES; i++){
 			if (sm->prizes[i].c!='\0'){
 				if(sm->bots[array_pos].x==sm->prizes[i].x && sm->bots[array_pos].y==sm->prizes[i].y){
 					return i+MAX_PLAYERS;
@@ -95,14 +95,14 @@ int check_collision (server_message * sm, int element_role, int array_pos){//ele
 				}
 			}
 		}
-		for(int i=0; i<MAX_PLAYERS; i++){
+		for(int i=0; i<MAX_BOTS; i++){
 			if (sm->bots[i].c!='\0'){
 				if(sm->prizes[array_pos].x==sm->bots[i].x && sm->prizes[array_pos].y==sm->bots[i].y){
 					return -1;
 				}
 			}
 		}
-		for(int i=0; i<MAX_PLAYERS; i++){
+		for(int i=0; i<MAX_PRIZES; i++){
 			if (array_pos!=i && sm->prizes[i].c!='\0'){
 				if(sm->prizes[array_pos].x==sm->prizes[i].x && sm->prizes[array_pos].y==sm->prizes[i].y){
 					return i+MAX_PLAYERS;
@@ -242,12 +242,11 @@ int main(){
         socklen_t client_addr_size = sizeof(struct sockaddr_un);
 	client_message cm;
 	server_message sm;
-	player_position_t players[MAX_PLAYERS];
-	char bot_message[MAX_PLAYERS];
+	//player_position_t players[MAX_PLAYERS];
+	char bot_message[MAX_BOTS];
 
 	srand(time(NULL));
 	
-
 	for(i=0; i<MAX_PLAYERS; i++) sm.players[i].c = '\0'; //Inicializing sm.players array
 	for(i=0; i<MAX_PRIZES; i++)
 	{ sm.prizes[i].c = '\0';
@@ -255,7 +254,6 @@ int main(){
 		sm.prizes[i].y = 1;
 	}
 	for(i=0; i<MAX_BOTS; i++) sm.bots[i].c = '\0';
-
 	fd = create_socket();
 
 	initscr();		    	/* Start curses mode 		*/
@@ -278,7 +276,7 @@ int main(){
 		n = recvfrom(fd, &cm, sizeof(client_message), 0, ( struct sockaddr *)&client_addr, &client_addr_size);
 		if(n == -1)perror("recv error(please press ctrl+C)");
 			
-		mvwprintw(message_win, 1,1,"Received: %d %c %c ", cm.type, cm.arg, cm.c);
+		mvwprintw(message_win, 1,1,"Received: %d %c %c", cm.type, cm.arg, cm.c);
 
 		switch (cm.type)
 		{
@@ -332,7 +330,7 @@ int main(){
 					bot_count = atoi(&cm.c);
 					for(i=0; i<bot_count; i++){ 
 					k=0;
-					while(sm.bots[k].c!='\0' && k<MAX_PLAYERS) k++;
+					while(sm.bots[k].c!='\0' && k<MAX_PRIZES) k++;
 					new_player (&sm, 1, k, '*');
 					draw_player(my_win, &sm.bots[k], true);
 					}
@@ -371,56 +369,67 @@ int main(){
 					if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
 					else
 					{
-						temp_x=sm.players[i].x;
-						temp_y=sm.players[i].y;
-						draw_player(my_win, &sm.players[i], false);
-						moove_player (&sm.players[i], cm.arg);
-						rammed_player = check_collision(&sm, 0, i);
-
-						if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
-							sm.players[i].x=temp_x;
-							sm.players[i].y=temp_y;
-							update_health(&sm.players[i], -2);
-							update_health(&sm.players[rammed_player], -1);
-						
-						}else if(rammed_player==-1){
-							sm.players[i].x=temp_x;
-							sm.players[i].y=temp_y;
-						}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){
-							update_health(&sm.players[i], sm.prizes[rammed_player-MAX_PLAYERS].health_bar);
-							draw_player(my_win, &sm.prizes[rammed_player-MAX_PLAYERS], false);
-							sm.prizes[rammed_player-MAX_PLAYERS].c='\0';
-							prize_count--;
-						}
-						}
-						draw_player(my_win, &sm.players[i], true);
-					
-						/*if (players[i].health_bar==0){
-							draw_player(my_win, &players[i], false);
-							mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
-							players[i].c = '\0';
+						if (sm.players[i].health_bar<=0){
+							draw_player(my_win, &sm.players[i], false);
+							mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
+							sm.players[i].c = '\0';
 							player_count--;
-						}else{*/
+							sm.type = 3;
+							sm.player_pos=-1;
+						}else{
+							temp_x=sm.players[i].x;
+							temp_y=sm.players[i].y;
+							draw_player(my_win, &sm.players[i], false);
+							moove_player (&sm.players[i], cm.arg);
+							rammed_player = check_collision(&sm, 0, i);
 
-						mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
-						sm.type = 3;
-						sm.player_pos=i;
-						//}
+							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
+								sm.players[i].x=temp_x;
+								sm.players[i].y=temp_y;
+								update_health(&sm.players[i], -2);
+								update_health(&sm.players[rammed_player], -1);
+							
+							}else if(rammed_player==-1){
+								sm.players[i].x=temp_x;
+								sm.players[i].y=temp_y;
+							}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){
+								update_health(&sm.players[i], sm.prizes[rammed_player-MAX_PLAYERS].health_bar);
+								draw_player(my_win, &sm.prizes[rammed_player-MAX_PLAYERS], false);
+								sm.prizes[rammed_player-MAX_PLAYERS].c='\0';
+								prize_count--;
+							}
+							}
+							draw_player(my_win, &sm.players[i], true);
+						
+							if (sm.players[i].health_bar<=0){
+								draw_player(my_win, &sm.players[i], false);
+								mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
+								sm.players[i].c = '\0';
+								player_count--;
+								sm.type = 3;
+								sm.player_pos=-1;
+							}else{
+
+							mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
+							sm.type = 3;
+							sm.player_pos=i;
+							}
+						}
 
 						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 					if(n==-1)perror("sendto error");
 				}
 			break;
 			case 2:
-				if(prize_count < MAX_PLAYERS)
+				if(prize_count < MAX_PRIZES)
 				{	
 					j=0;
-					while(sm.prizes[j].c!='\0' && j<MAX_PLAYERS) j++;
+					while(sm.prizes[j].c!='\0' && j<MAX_PRIZES) j++;
 					new_player (&sm, 2, j, cm.arg);
 					draw_player(my_win, &sm.prizes[j], true);
 					prize_count++;
 
-					mvwprintw(message_win, 2,1,"New Prize: %d %d %c ", sm.prizes[j].x, sm.prizes[j].y, cm.arg);
+					mvwprintw(message_win, 2,1,"New Prize: %d %d %c", sm.prizes[j].x, sm.prizes[j].y, cm.arg);
 				}
 			break;
 		}

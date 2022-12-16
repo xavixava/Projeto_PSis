@@ -192,7 +192,7 @@ int main(){
 				draw_player(my_win, &sm.prizes[i], false);
 			//}
 		}
-		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
+		for(int i=0; i<MAX_BOTS; i++){ //clear the screen
 			if(sm.bots[i].c!='\0'){
 				draw_player(my_win, &sm.bots[i], false);
 			}
@@ -201,6 +201,13 @@ int main(){
 		n = recv(fd, &sm, sizeof(server_message), 0);
 		if(n == -1)perror("Recv error(please press ctrl+C)");
 		//mvwprintw(message_win, 1,1,"Received: %d %d", sm.type, sm.player_pos);
+		if(sm.player_pos==-1){
+			mvwprintw(message_win, 1,1,"HP - 0");
+			mvwprintw(message_win, 2,1,"Server Disconnected");
+			wrefresh(message_win);	
+			sleep(5);
+			return 0;
+		}
 		mvwprintw(message_win, 1,1,"HP - %d ", sm.players[sm.player_pos].health_bar);
         wrefresh(message_win);	
 
@@ -214,7 +221,7 @@ int main(){
 				draw_player(my_win, &sm.prizes[i], true);
 			}
 		}
-		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
+		for(int i=0; i<MAX_BOTS; i++){ //clear the screen
 			if(sm.bots[i].c!='\0'){
 				draw_player(my_win, &sm.bots[i], true);
 			}
@@ -226,7 +233,9 @@ int main(){
 	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 	if(n == -1)//perror("Send error(please press ctrl+C)");
 	{
-		printf("Server disconected\n");
+		mvwprintw(message_win, 2,1,"Server Disconnected");
+		wrefresh(message_win);	
+		sleep(5);
 		return 0;
 	}	
 	return 0;
