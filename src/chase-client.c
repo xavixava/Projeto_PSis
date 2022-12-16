@@ -150,8 +150,18 @@ int main(){
 	wrefresh(message_win);	
 
 	for(int i=0; i<MAX_PLAYERS; i++){ //update the screen
-		if(sm.players[i].c!='\0'){
+		if(sm.players[i].c!='\0' && sm.players[i].health_bar>0){
 			draw_player(my_win, &sm.players[i], true);
+		}
+	}
+	for(int i=0; i<MAX_PRIZES; i++){ //update the screen
+		if(sm.prizes[i].c!='\0'){
+			draw_player(my_win, &sm.prizes[i], true);
+		}
+	}
+	for(int i=0; i<MAX_BOTS; i++){ //update the screen
+		if(sm.bots[i].c!='\0'){
+			draw_player(my_win, &sm.bots[i], true);
 		}
 	}
 	
@@ -212,16 +222,16 @@ int main(){
         wrefresh(message_win);	
 
 		for(int i=0; i<MAX_PLAYERS; i++){ //update the screen
-			if(sm.players[i].c!='\0'){
+			if(sm.players[i].c!='\0' && sm.players[i].health_bar>0){
 				draw_player(my_win, &sm.players[i], true);
 			}
 		}
-		for(int i=0; i<MAX_PRIZES; i++){ //clear the screen
+		for(int i=0; i<MAX_PRIZES; i++){ //update the screen
 			if(sm.prizes[i].c!='\0'){
 				draw_player(my_win, &sm.prizes[i], true);
 			}
 		}
-		for(int i=0; i<MAX_BOTS; i++){ //clear the screen
+		for(int i=0; i<MAX_BOTS; i++){ //update the screen
 			if(sm.bots[i].c!='\0'){
 				draw_player(my_win, &sm.bots[i], true);
 			}

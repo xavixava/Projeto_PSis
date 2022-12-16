@@ -58,7 +58,8 @@ int main(int argc, char **argv)
         	strcpy(server_addr.sun_path, argv[1]);	
 	}
 
-	const int bot_count = atoi(argv[2]) < 10 ? atoi(argv[2]) : 10;
+	const int bot_count = atoi(argv[2]) <= 10 ? atoi(argv[2])-1 : 9;
+	printf("%d\n", bot_count);
 	char bot_vector[bot_count];   
 
 	fd = create_socket();
@@ -67,46 +68,52 @@ int main(int argc, char **argv)
 	cm.arg = 'b';
 	cm.c = '0' + bot_count;	
 
-	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
-	if(n == -1)perror("Sendto error(please press ctrl+C)");
-    	
+	do
+	{
+		n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
+	}while(n==-1);
+
     	cm.type=1;
 	cm.arg = 'b';
     	while (1)
     	{
         	sleep(3);
-		for(i=0; i < bot_count; i++)
+		for(i=0; i < bot_count+1; i++)
 		{
         		direction = random()%4;
         		n++;
         		switch (direction)
         		{
         			case LEFT:
-        	   		printf("%d Going Left   \n", n);
+        	   		//printf("%d Going Left   \n", n);
         	   		bot_vector[i]='l'; 
 		   		break;
         		case RIGHT:
-        	    		printf("%d Going Right   \n", n);
+        	    		//printf("%d Going Right   \n", n);
            			bot_vector[i]='r'; 
            		break;
         		case DOWN:
-            			printf("%d Going Down   \n", n);
+            			//printf("%d Going Down   \n", n);
            			bot_vector[i]='d'; 
            		break;
         		case UP:
-            			printf("%d Going Up    \n", n);
+            			//printf("%d Going Up    \n", n);
            			bot_vector[i]='u'; 
             		break;
         		}
 		}
 		
 	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
-	if(n == -1)perror("Sendto error(please press ctrl+C)");
-	
-	n = sendto(fd, &bot_vector, bot_count, 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 	if(n == -1)
 	{
-		printf("Disconected from server\n");
+		printf("bot: Disconected from server\n");
+		break;	
+	}
+	
+	n = sendto(fd, &bot_vector, bot_count+1, 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
+	if(n == -1)
+	{
+		printf("bot: Disconected from server\n");
 		break;	
 	}
     }
