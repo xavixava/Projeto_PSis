@@ -19,7 +19,7 @@ void update_health(player_position_t * player, int collision_type){
 		player->health_bar--;
 	}else if(collision_type==0){ //got hit by bot
 		player->health_bar--;
-	}else if(collision_type>0&&collision_type<=5){ //hit prize	
+	}else if(collision_type>0&&collision_type<=5){ //hit prize (collision_type is the value of the prize)
 		player->health_bar+=collision_type;
 	}
 
@@ -32,9 +32,16 @@ void update_health(player_position_t * player, int collision_type){
 }
 
 
-/*Checks if there's a player/bot in the current player position, 
-returns the player/bot position in the array in case of colision*/
-int check_collision (server_message * sm, int element_role, int array_pos){//element_role: 0 - player, 1 -bot, 2 prize
+/*Checks if there's a element in the current player position, 
+returns the element position in the respective array in case of colision
+
+Return -2 if no collision
+Return -1 if hit bot
+Return 0-9 if hit player (position of player in array)
+Return 10-19 if it prize (position of prize in array + offset)
+*/
+int check_collision (server_message * sm, int element_role, int array_pos){
+	//element_role: 0 = player, 1 = bot, 2 = prize
 	switch (element_role)
 	{
 	case 0://player
@@ -48,7 +55,7 @@ int check_collision (server_message * sm, int element_role, int array_pos){//ele
 		for(int i=0; i<MAX_BOTS; i++){
 			if (sm->bots[i].c!='\0'){
 				if(sm->players[array_pos].x==sm->bots[i].x && sm->players[array_pos].y==sm->bots[i].y){
-					return -1;
+					return -1; 
 				}
 			}
 		}
@@ -256,10 +263,10 @@ int main(){
 	for(i=0; i<MAX_BOTS; i++) sm.bots[i].c = '\0';
 	fd = create_socket();
 
-	initscr();		    	/* Start curses mode 		*/
-	cbreak();				/* Line buffering disabled	*/
+	initscr();		/* Start curses mode 		*/
+	cbreak();		/* Line buffering disabled	*/
 	keypad(stdscr, TRUE);   /* We get F1, F2 etc..		*/
-	noecho();			    /* Don't echo() while we do getch */
+	noecho();		/* Don't echo() while we do getch */
 
 	/* creates a window and draws a border */
 	WINDOW * my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
@@ -272,7 +279,7 @@ int main(){
 	wrefresh(message_win);
 	
     	while(1){
-	
+		//awaits for message from prizes, bots or players
 		n = recvfrom(fd, &cm, sizeof(client_message), 0, ( struct sockaddr *)&client_addr, &client_addr_size);
 		if(n == -1)perror("recv error(please press ctrl+C)");
 			
@@ -280,7 +287,7 @@ int main(){
 
 		switch (cm.type)
 		{
-			case 0: //Message about player's connection
+			case 0: //Message about player's/bot's connection
 				if(cm.arg == 'c')
 				{
 					if (player_count == MAX_PLAYERS) // field is full
@@ -312,7 +319,7 @@ int main(){
 						if(n==-1)perror("sendto error");
 					}	
 				}
-				else if (cm.arg == 'd')	// disconect client
+				else if (cm.arg == 'd')	// disconect player
 				{
 					i = search_player(sm.players, cm.c);
 					if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
@@ -326,12 +333,8 @@ int main(){
 				}
 				else if(cm.arg == 'b') // bot client conected 
 				{  
-				   // todo: run bot-client from makefile
 					bot_count = atoi(&cm.c)+1;
 					for(i=0; i<bot_count; i++){ 
-						//k=0; // bots sao criados no inicio, isto nao é necessario
-						//while(sm.bots[k].c!='\0' && k<MAX_PRIZES) k++;
-						//new_player (&sm, 1, k, '*');
 						new_player (&sm, 1, i, '*');
 						draw_player(my_win, &sm.bots[k], true);
 					}
@@ -344,7 +347,7 @@ int main(){
 				{
 					n = recvfrom(fd, &bot_message, bot_count, 0, ( struct sockaddr *)&client_addr, &client_addr_size);
 					if(n == -1)perror("recv error(please press ctrl+C)");
-					for(k=0; k<bot_count; k++)
+					for(k=0; k<bot_count; k++)  //move each bot accordingly and check for collision
 					{
 							temp_x=sm.bots[k].x;
 							temp_y=sm.bots[k].y;
@@ -353,15 +356,12 @@ int main(){
 							rammed_player = check_collision(&sm, 1, k);
 									
 
-							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
+							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){ //bot hit player (update player's health)
 								if(sm.players[rammed_player].health_bar!=0){
 									sm.bots[k].x=temp_x;
 									sm.bots[k].y=temp_y;
 									update_health(&sm.players[rammed_player], -1);
 								}
-							//}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){
-							//	sm.bots[k].x=temp_x;
-							//	sm.bots[k].y=temp_y;
 							}
 							draw_player(my_win, &sm.bots[k], true);
 					}
@@ -371,21 +371,21 @@ int main(){
 					if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
 					else
 					{
-						if (sm.players[i].health_bar<=0){
+						if (sm.players[i].health_bar<=0){ //player has 0 health it is disconnected
 							draw_player(my_win, &sm.players[i], false);
 							mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
 							sm.players[i].c = '\0';
 							player_count--;
 							sm.type = 3;
 							sm.player_pos=-1;
-						}else{
+						}else{ //move player accordingly and check for collisions
 							temp_x=sm.players[i].x;
 							temp_y=sm.players[i].y;
 							draw_player(my_win, &sm.players[i], false);
 							moove_player (&sm.players[i], cm.arg);
 							rammed_player = check_collision(&sm, 0, i);
 
-							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
+							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){//collided with player
 								if(sm.players[rammed_player].health_bar!=0){
 									sm.players[i].x=temp_x;
 									sm.players[i].y=temp_y;
@@ -393,10 +393,10 @@ int main(){
 									update_health(&sm.players[rammed_player], -1);
 								}
 							
-							}else if(rammed_player==-1){
+							}else if(rammed_player==-1){//colided with bot
 								sm.players[i].x=temp_x;
 								sm.players[i].y=temp_y;
-							}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){
+							}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){//found prize
 								update_health(&sm.players[i], sm.prizes[rammed_player-MAX_PLAYERS].health_bar);
 								draw_player(my_win, &sm.prizes[rammed_player-MAX_PLAYERS], false);
 								sm.prizes[rammed_player-MAX_PLAYERS].c='\0';
@@ -405,14 +405,14 @@ int main(){
 							}
 							draw_player(my_win, &sm.players[i], true);
 						
-							if (sm.players[i].health_bar<=0){
+							if (sm.players[i].health_bar<=0){//Reached 0HP disconnected
 								draw_player(my_win, &sm.players[i], false);
 								mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
 								sm.players[i].c = '\0';
 								player_count--;
 								sm.type = 3;
 								sm.player_pos=-1;
-							}else{
+							}else{//Send the player its and the field's updated status
 
 							mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
 							sm.type = 3;
@@ -424,8 +424,8 @@ int main(){
 					if(n==-1)perror("sendto error");
 				}
 			break;
-			case 2:
-				if(prize_count < MAX_PRIZES)
+			case 2: //Recieved a new prize to be added
+				if(prize_count < MAX_PRIZES) //only adds it if limit wasn't reached
 				{	
 					j=0;
 					while(sm.prizes[j].c!='\0' && j<MAX_PRIZES) j++;
