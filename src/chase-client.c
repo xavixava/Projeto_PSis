@@ -10,12 +10,6 @@
 
 WINDOW * message_win;
 
-typedef struct player_position_t{
-    int x, y;
-    char c;
-    int health_bar;
-} player_position_t;
-
 void new_player (player_position_t * player, char c){
     player->x = WINDOW_SIZE/2;
     player->y = WINDOW_SIZE/2;
@@ -36,6 +30,7 @@ void draw_player(WINDOW *win, player_position_t * player, int delete){
     wrefresh(win);
 }
 
+//Unused
 void moove_player (player_position_t * player, int direction){
     if (direction == KEY_UP){
         if (player->y  != 1){
@@ -128,14 +123,17 @@ int main(){
         	key = wgetch(my_win);
 		if('a' <= tolower(key) && tolower(key) <= 'z')
 		{
-			new_player(&p1, key);
+			//new_player(&p1, key);
     			cm.type = 0;
 			cm.arg = 'c';
 			cm.c = key;
    
 			n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
-			if(n == -1)perror("Sendto error(please press ctrl+C)");
-	
+			if(n == -1)//perror("Sendto error(please press ctrl+C)");
+			{
+				printf("Server disconected\n");
+				return 0;
+			}
 			n = recv(fd, &sm, sizeof(server_message), 0);
 			if(n == -1)perror("Recv error(please press ctrl+C)");
 			else if(sm.type==1)
@@ -146,71 +144,89 @@ int main(){
 		}
 	}while(sm.type==2);
 		
-        mvwprintw(message_win, 1,1,"                                   ");
+	mvwprintw(message_win, 1,1,"                                   ");
 	box(message_win, 0 , 0);	
-        wrefresh(message_win);	
-	//for(i<player_count){
-	p1.x = sm.x;
-	p1.y = sm.y;
-	draw_player(my_win, &p1, true);
-	//}
+	wrefresh(message_win);	
+
+	for(int i=0; i<MAX_PLAYERS; i++){ //update the screen
+		if(sm.players[i].c!='\0'){
+			draw_player(my_win, &sm.players[i], true);
+		}
+	}
 	
 	cm.type = 1;	
-	while(key != 27 && key!= 'q'){
+	while(key != 27 && key!= 'q'){ //awaits movement updates until disconnection or health_0
         	key = wgetch(my_win);
         	switch(key)
 		{
 			case KEY_LEFT:
             			cm.arg = 'l';
-				draw_player(my_win, &p1, false);
-            			moove_player (&p1, key);
-            			draw_player(my_win, &p1, true);
 			break;
 			
 			case KEY_RIGHT:
             			cm.arg = 'r';
-            			draw_player(my_win, &p1, false);
-            			moove_player (&p1, key);
-            			draw_player(my_win, &p1, true);
 			break;
 			
 			case KEY_UP:
             			cm.arg = 'u';
-            			draw_player(my_win, &p1, false);
-            			moove_player (&p1, key);
-            			draw_player(my_win, &p1, true);
 			break;
 			
 			case KEY_DOWN:
             			cm.arg = 'd';
-            			draw_player(my_win, &p1, false);
-            			moove_player (&p1, key);
-            			draw_player(my_win, &p1, true);
 			break;
 
 		}
 		n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 		if(n == -1)perror("Send error(please press ctrl+C)");
         	
-        	mvwprintw(message_win, 2,1,"%c key pressed", key);
+		mvwprintw(message_win, 2,1,"%c key pressed", key);
+			
+		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
+			if(sm.players[i].c!='\0'){
+				draw_player(my_win, &sm.players[i], false);
+			}
+		}
+		for(int i=0; i<MAX_PRIZES; i++){ //clear the screen
+			if(sm.prizes[i].c!='\0'){
+				draw_player(my_win, &sm.prizes[i], false);
+			}
+		}
+		for(int i=0; i<MAX_BOTS; i++){ //clear the screen
+			if(sm.bots[i].c!='\0'){
+				draw_player(my_win, &sm.bots[i], false);
+			}
+		}
 		
 		n = recv(fd, &sm, sizeof(server_message), 0);
 		if(n == -1)perror("Recv error(please press ctrl+C)");
-    	
-		p1.x = sm.x;
-		p1.y = sm.y;
-		p1.health_bar = sm.health;
-		//todo for (i<0; i<sm.elements; i++)
-		
-		mvwprintw(message_win, 1,1,"HP - %d ", p1.health_bar);
-		
-        	wrefresh(message_win);	
+		//mvwprintw(message_win, 1,1,"Received: %d %d", sm.type, sm.player_pos);
+		mvwprintw(message_win, 1,1,"HP - %d ", sm.players[sm.player_pos].health_bar);
+        wrefresh(message_win);	
+
+		for(int i=0; i<MAX_PLAYERS; i++){ //update the screen
+			if(sm.players[i].c!='\0'){
+				draw_player(my_win, &sm.players[i], true);
+			}
+		}
+		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
+			if(sm.prizes[i].c!='\0'){
+				draw_player(my_win, &sm.prizes[i], true);
+			}
+		}
+		for(int i=0; i<MAX_BOTS; i++){ //clear the screen
+			if(sm.bots[i].c!='\0'){
+				draw_player(my_win, &sm.bots[i], true);
+			}
+		}
 	}
 
 	cm.type = 0; 
 	cm.arg = 'd';
 	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
-	if(n == -1)perror("Send error(please press ctrl+C)");
-    	
+	if(n == -1)//perror("Send error(please press ctrl+C)");
+	{
+		printf("Server disconected\n");
+		return 0;
+	}	
 	return 0;
 }

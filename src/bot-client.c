@@ -9,11 +9,6 @@
 
 typedef enum direction_t {UP, DOWN, LEFT, RIGHT} direction_t;
 
-typedef struct player_position_t{
-    int x, y;
-    char c;
-    int health_bar;
-} player_position_t;
 
 /*
 Create a socket to be able to comunicate with clients
