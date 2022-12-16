@@ -23,4 +23,4 @@ easy-run:
 	./server
 
 clean:
-	rm chase-client server 
+	rm chase-client server bot-client prize-generator 
