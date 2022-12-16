@@ -24,10 +24,10 @@ void update_health(player_position_t * player, int collision_type){
 	}
 
 	if (player->health_bar<=0){ //min health is 0
-		//player->health_bar=0;
+		player->health_bar=0;
 	}
 	else if (player->health_bar>10){ //max health is 10
-		//player->health_bar=10;
+		player->health_bar=10;
 	}
 }
 
