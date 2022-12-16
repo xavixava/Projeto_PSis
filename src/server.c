@@ -124,8 +124,10 @@ int check_collision (server_message * sm, int element_role, int array_pos){
 		break;
 	}
 }
-
-void new_player (server_message * sm, int element_role, int array_pos, char c){ //todo check for bots/prizes
+/*
+Adds a new element in random position avoiding other elements that might exist in that location
+*/
+void new_player (server_message * sm, int element_role, int array_pos, char c){
     
 	srand(time(NULL));
 	switch (element_role)
