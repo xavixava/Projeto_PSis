@@ -110,7 +110,7 @@ int main(){
     keypad(my_win, true);
     	
 	/* creates a window and draws a border */
-	message_win = newwin(10, WINDOW_SIZE, WINDOW_SIZE, 0);
+	message_win = newwin(12, WINDOW_SIZE, WINDOW_SIZE, 0);
 	box(message_win, 0 , 0);	
 	wrefresh(message_win);
 	
@@ -250,9 +250,11 @@ int main(){
 	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 	if(n == -1)//perror("Send error(please press ctrl+C)");
 	{
-		mvwprintw(message_win, 2,1,"Server Disconnected");
+		werase(message_win);
+		box(message_win, 0 , 0);	
+		mvwprintw(message_win, 2,1,"Exiting Game");
 		wrefresh(message_win);	
-		sleep(5);
+		sleep(2);
 		return 0;
 	}	
 	return 0;
