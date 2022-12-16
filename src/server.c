@@ -352,11 +352,13 @@ int main(){
 							moove_player (&sm.bots[k], bot_message[k]);
 							rammed_player = check_collision(&sm, 1, k);
 									
+
 							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
-								sm.bots[k].x=temp_x;
-								sm.bots[k].y=temp_y;
-								update_health(&sm.players[rammed_player], -1);
-						
+								if(sm.players[rammed_player].health_bar!=0){
+									sm.bots[k].x=temp_x;
+									sm.bots[k].y=temp_y;
+									update_health(&sm.players[rammed_player], -1);
+								}
 							}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){
 								sm.bots[k].x=temp_x;
 								sm.bots[k].y=temp_y;
@@ -384,10 +386,12 @@ int main(){
 							rammed_player = check_collision(&sm, 0, i);
 
 							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
-								sm.players[i].x=temp_x;
-								sm.players[i].y=temp_y;
-								update_health(&sm.players[i], -2);
-								update_health(&sm.players[rammed_player], -1);
+								if(sm.players[rammed_player].health_bar!=0){
+									sm.players[i].x=temp_x;
+									sm.players[i].y=temp_y;
+									update_health(&sm.players[i], -2);
+									update_health(&sm.players[rammed_player], -1);
+								}
 							
 							}else if(rammed_player==-1){
 								sm.players[i].x=temp_x;

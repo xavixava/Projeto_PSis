@@ -38,7 +38,7 @@ int create_socket()
 
 int generate_prize()
 {
-	return (random()%4)+1;
+	return (random()%5)+1;
 }
 
 int main(int argc, char **argv)
