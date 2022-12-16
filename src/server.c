@@ -45,14 +45,14 @@ int check_collision (server_message * sm, int element_role, int array_pos){//ele
 				} 
 			}
 		}
-		for(int i=0; i<MAX_BOTS; i++){
+		for(int i=0; i<MAX_PLAYERS; i++){
 			if (sm->bots[i].c!='\0'){
 				if(sm->players[array_pos].x==sm->bots[i].x && sm->players[array_pos].y==sm->bots[i].y){
 					return -6;
 				}
 			}
 		}
-		for(int i=0; i<MAX_PRIZES; i++){
+		for(int i=0; i<MAX_PLAYERS; i++){
 			if (sm->prizes[i].c!='\0'){
 				if(sm->players[array_pos].x==sm->prizes[i].x && sm->players[array_pos].y==sm->prizes[i].y){
 					//remove_prize(check_prize);
@@ -71,14 +71,14 @@ int check_collision (server_message * sm, int element_role, int array_pos){//ele
 				}
 			}
 		}
-		for(int i=0; i<MAX_BOTS; i++){
+		for(int i=0; i<MAX_PLAYERS; i++){
 			if (array_pos!=i && sm->bots[i].c!='\0'){
 				if(sm->bots[array_pos].x==sm->bots[i].x && sm->bots[array_pos].y==sm->bots[i].y){
 					return -6;
 				}
 			}
 		}
-		for(int i=0; i<MAX_PRIZES; i++){
+		for(int i=0; i<MAX_PLAYERS; i++){
 			if (sm->prizes[i].c!='\0'){
 				if(sm->bots[array_pos].x==sm->prizes[i].x && sm->bots[array_pos].y==sm->prizes[i].y){
 					return -sm->prizes[i].health_bar;
@@ -96,14 +96,14 @@ int check_collision (server_message * sm, int element_role, int array_pos){//ele
 				}
 			}
 		}
-		for(int i=0; i<MAX_BOTS; i++){
+		for(int i=0; i<MAX_PLAYERS; i++){
 			if (sm->bots[i].c!='\0'){
 				if(sm->prizes[array_pos].x==sm->bots[i].x && sm->prizes[array_pos].y==sm->bots[i].y){
 					return -6;
 				}
 			}
 		}
-		for(int i=0; i<MAX_PRIZES; i++){
+		for(int i=0; i<MAX_PLAYERS; i++){
 			if (array_pos!=i && sm->prizes[i].c!='\0'){
 				if(sm->prizes[array_pos].x==sm->prizes[i].x && sm->prizes[array_pos].y==sm->prizes[i].y){
 					return -sm->prizes[i].health_bar;
@@ -242,14 +242,17 @@ int main(){
         socklen_t client_addr_size = sizeof(struct sockaddr_un);
 	client_message cm;
 	server_message sm;
-	//player_position_t bots[MAX_BOTS], prizes[MAX_PRIZES];
-	char bot_message[MAX_BOTS];
+	player_position_t players[MAX_PLAYERS];
+	char bot_message[MAX_PLAYERS];
 
 	srand(time(NULL));
 	
-	for(i=0; i<MAX_PLAYERS; i++) sm.players[i].c = '\0'; //Inicializing sm.players array
-	for(i=0; i<MAX_PRIZES; i++) sm.prizes[i].c = '\0';
-	for(i=0; i<MAX_BOTS; i++) sm.bots[i].c = '\0';
+	for(i=0; i<MAX_PLAYERS; i++)
+	{	
+		sm.players[i].c = '\0'; //Inicializing sm.players array
+		sm.prizes[i].c = '\0';
+		sm.bots[i].c = '\0';
+	}
 	fd = create_socket();
 
 	initscr();		    	/* Start curses mode 		*/
@@ -263,7 +266,7 @@ int main(){
 	wrefresh(my_win);
     
 	/* creates a window and draws a border */
-	message_win = newwin(5, WINDOW_SIZE, WINDOW_SIZE, 0);
+	message_win = newwin(10, 25, WINDOW_SIZE, 0);
 	box(message_win, 0 , 0);	
 	wrefresh(message_win);
 	
@@ -284,7 +287,7 @@ int main(){
 						sm.type = 2;	
 						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
 					}	
-					else if(search_player(sm.players, cm.c)==-1) // non-repeated character
+					else if(search_player(sm.players, cm.c)==-1) // accepted player
 					{	
 						i=0;
 						while(sm.players[i].c!='\0' && i<MAX_PLAYERS) i++;
@@ -292,14 +295,16 @@ int main(){
 						mvwprintw(message_win, 2,1,"player %c joined", cm.c);
 						
 						sm.type = 0;
-
+							
+						mvwprintw(message_win, 3,1,"%s", client_addr.sun_path);
+						
 						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 						if(n==-1)perror("sendto error");
 						
 						draw_player(my_win, &sm.players[i], true);
 						player_count++;
 					}
-					else	// refuse character
+					else	// repeated character
 					{
 						sm.type = 2;
 						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
@@ -324,7 +329,7 @@ int main(){
 					bot_count = atoi(&cm.c);
 					for(i=0; i<bot_count; i++){ 
 					k=0;
-					while(sm.bots[k].c!='\0' && k<MAX_PRIZES) k++;
+					while(sm.bots[k].c!='\0' && k<MAX_PLAYERS) k++;
 					new_player (&sm, 1, k, '*');
 					draw_player(my_win, &sm.bots[k], true);
 					}
@@ -401,10 +406,10 @@ int main(){
 				}
 			break;
 			case 2:
-				if(prize_count < MAX_PRIZES)
+				if(prize_count < MAX_PLAYERS)
 				{	
 					j=0;
-					while(sm.prizes[j].c!='\0' && j<MAX_PRIZES) j++;
+					while(sm.prizes[j].c!='\0' && j<MAX_PLAYERS) j++;
 					new_player (&sm, 2, j, cm.arg);
 					draw_player(my_win, &sm.prizes[j], true);
 					prize_count++;
@@ -414,6 +419,7 @@ int main(){
 			break;
 		}
 		wrefresh(message_win);
+		memset(client_addr.sun_path, '\0', 108);
 	}
 
     exit(0);
