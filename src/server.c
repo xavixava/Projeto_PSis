@@ -350,10 +350,8 @@ int main(){
 							temp_y=sm.bots[k].y;
 							draw_player(my_win, &sm.bots[k], false);
 							moove_player (&sm.bots[k], bot_message[k]);
-							rammed_player = check_collision(&sm, 1, i);
+							rammed_player = check_collision(&sm, 1, k);
 									
-							mvwprintw(message_win, 3,1,"Rammed player %d", rammed_player);
-							
 							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
 								sm.bots[k].x=temp_x;
 								sm.bots[k].y=temp_y;
