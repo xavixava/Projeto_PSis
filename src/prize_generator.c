@@ -62,7 +62,7 @@ int main(int argc, char **argv)
 		prize = generate_prize();	
 		cm.arg = '0' + prize;
 		n = -1;
-		//sleep(5);
+		sleep(5);
 		while(n==-1) n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 	}
 

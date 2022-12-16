@@ -187,10 +187,10 @@ int main(){
 				draw_player(my_win, &sm.players[i], false);
 			}
 		}
-		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
-			if(sm.prizes[i].c!='\0'){
+		for(int i=0; i<MAX_PRIZES; i++){ //clear the screen
+			//if(sm.prizes[i].c!='\0'){
 				draw_player(my_win, &sm.prizes[i], false);
-			}
+			//}
 		}
 		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
 			if(sm.bots[i].c!='\0'){
@@ -209,7 +209,7 @@ int main(){
 				draw_player(my_win, &sm.players[i], true);
 			}
 		}
-		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
+		for(int i=0; i<MAX_PRIZES; i++){ //clear the screen
 			if(sm.prizes[i].c!='\0'){
 				draw_player(my_win, &sm.prizes[i], true);
 			}

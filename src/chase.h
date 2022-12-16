@@ -1,5 +1,9 @@
 #define WINDOW_SIZE 20
 #define MAX_PLAYERS 10
+
+#define MAX_BOTS 10
+#define MAX_PRIZES 10
+
 #define SOCK_ADDRESS "/tmp/server_sock"
 #define PRIZE_ADDR i "/tmp/prize_sock"
 
