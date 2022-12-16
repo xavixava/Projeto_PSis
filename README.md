@@ -3,7 +3,9 @@
 It is a project assigned by the Systems Programming subject. It implements a simple game where balls move in a field, trying to chase other balls and pick prizes.
 
 Project by:
+
 > Xavier Antunes, 96343
+
 > Tiago Espadinha, 96329
 
 ## Required knowledge
