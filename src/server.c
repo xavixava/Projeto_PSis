@@ -369,41 +369,52 @@ int main(){
 					if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
 					else
 					{
-						temp_x=sm.players[i].x;
-						temp_y=sm.players[i].y;
-						draw_player(my_win, &sm.players[i], false);
-						moove_player (&sm.players[i], cm.arg);
-						rammed_player = check_collision(&sm, 0, i);
-
-						if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
-							sm.players[i].x=temp_x;
-							sm.players[i].y=temp_y;
-							update_health(&sm.players[i], -2);
-							update_health(&sm.players[rammed_player], -1);
-						
-						}else if(rammed_player==-1){
-							sm.players[i].x=temp_x;
-							sm.players[i].y=temp_y;
-						}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){
-							update_health(&sm.players[i], sm.prizes[rammed_player-MAX_PLAYERS].health_bar);
-							draw_player(my_win, &sm.prizes[rammed_player-MAX_PLAYERS], false);
-							sm.prizes[rammed_player-MAX_PLAYERS].c='\0';
-							prize_count--;
-						}
-						}
-						draw_player(my_win, &sm.players[i], true);
-					
-						/*if (players[i].health_bar==0){
-							draw_player(my_win, &players[i], false);
-							mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
-							players[i].c = '\0';
+						if (sm.players[i].health_bar<=0){
+							draw_player(my_win, &sm.players[i], false);
+							mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
+							sm.players[i].c = '\0';
 							player_count--;
-						}else{*/
+							sm.type = 3;
+							sm.player_pos=-1;
+						}else{
+							temp_x=sm.players[i].x;
+							temp_y=sm.players[i].y;
+							draw_player(my_win, &sm.players[i], false);
+							moove_player (&sm.players[i], cm.arg);
+							rammed_player = check_collision(&sm, 0, i);
 
-						mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
-						sm.type = 3;
-						sm.player_pos=i;
-						//}
+							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
+								sm.players[i].x=temp_x;
+								sm.players[i].y=temp_y;
+								update_health(&sm.players[i], -2);
+								update_health(&sm.players[rammed_player], -1);
+							
+							}else if(rammed_player==-1){
+								sm.players[i].x=temp_x;
+								sm.players[i].y=temp_y;
+							}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){
+								update_health(&sm.players[i], sm.prizes[rammed_player-MAX_PLAYERS].health_bar);
+								draw_player(my_win, &sm.prizes[rammed_player-MAX_PLAYERS], false);
+								sm.prizes[rammed_player-MAX_PLAYERS].c='\0';
+								prize_count--;
+							}
+							}
+							draw_player(my_win, &sm.players[i], true);
+						
+							if (sm.players[i].health_bar<=0){
+								draw_player(my_win, &sm.players[i], false);
+								mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
+								sm.players[i].c = '\0';
+								player_count--;
+								sm.type = 3;
+								sm.player_pos=-1;
+							}else{
+
+							mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
+							sm.type = 3;
+							sm.player_pos=i;
+							}
+						}
 
 						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 					if(n==-1)perror("sendto error");

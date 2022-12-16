@@ -11,15 +11,6 @@ typedef struct player_position_t{
     int health_bar;
 } player_position_t;
 
-typedef struct bot_position_t{
-    int x, y;
-    char c;
-} bot_position_t;
-
-typedef struct prize_position_t{
-    int x, y;
-    char val;
-} prize_position_t;
 // if server sends disconecting then it means it cannot accept more clients
 
 typedef struct client_message{	//later on define field status messages
@@ -30,7 +21,7 @@ typedef struct client_message{	//later on define field status messages
 
 typedef struct server_message{	//later on define field status messages
     int type; // 0-conection accepted, 1-no more characters, 2-refusing char, 3-movement response
-    int player_pos; //position of player recieving the message in the players array
+    int player_pos; //position of player recieving the message in the players array, -1 implies the user reached hp0 and has to disconnect
     player_position_t players[MAX_PLAYERS];
     player_position_t bots[MAX_BOTS];
     player_position_t prizes[MAX_PRIZES]; // number of elements to be able to receive field status message
