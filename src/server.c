@@ -359,9 +359,9 @@ int main(){
 									sm.bots[k].y=temp_y;
 									update_health(&sm.players[rammed_player], -1);
 								}
-							}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){
-								sm.bots[k].x=temp_x;
-								sm.bots[k].y=temp_y;
+							//}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){
+							//	sm.bots[k].x=temp_x;
+							//	sm.bots[k].y=temp_y;
 							}
 							draw_player(my_win, &sm.bots[k], true);
 					}
