@@ -352,8 +352,7 @@ int main(){
 							moove_player (&sm.bots[k], bot_message[k]);
 							rammed_player = check_collision(&sm, 1, k);
 									
-							mvwprintw(message_win, 3,1,"Rammed player %d", rammed_player);
-							
+
 							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){
 								if(sm.players[rammed_player].health_bar!=0){
 									sm.bots[k].x=temp_x;

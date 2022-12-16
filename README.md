@@ -14,4 +14,14 @@ make
 
 #run client and server in different windows
 ./chase-client
+./server
+
+#bot-client and prize-generator will be needed for the game to function properly
+./bot-client
+./bot-client /tmp/server_sock <number of bots>
+
+#or use one of the predetermined modes
+make easy-run
+make hard-run
+
 ```
