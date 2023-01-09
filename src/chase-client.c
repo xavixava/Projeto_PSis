@@ -215,7 +215,7 @@ int main(){
 		
 		n = recv(fd, &sm, sizeof(server_message), 0);
 		//if(n == -1)perror("Recv error(please press ctrl+C)");
-		if(sm.player_pos==-1){
+		if(sm.type==3){
 			werase(message_win);
 			box(message_win, 0 , 0);	
 			mvwprintw(message_win, 1,1,"HP - 0");
