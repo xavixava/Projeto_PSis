@@ -16,6 +16,8 @@ WINDOW *my_win;
 
 short bot_nr;
 server_message sm;
+pthread_t id[14];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: update players; 13: tcp listener
+
 
 
 /*
@@ -82,6 +84,32 @@ void *bot_gen(void *arg)
 }
 
 
+void *cli_reciever(void *arg){
+	q=QueueNew();
+	client_message cm;
+	recv(arg, &cm, sizeof(client_message), 0);
+	InsertLast(q, &cm);
+	computation(q)
+}
+
+
+void *tcp_accepter(void *arg){
+	int player_count = 0;
+	while(1){
+		if (player_count < MAX_PLAYERS){
+			new_client = accept(fd, (struct sockaddr*)&serverStorage, &client_addr_size);
+			for (int i=0; i<MAX_PLAYERS; i++){
+				if (arg[i]==0)
+					arg[i]=new_client;
+					pthread_create (&id[i], NULL, cli_reciever, &new_client); //should have message_process function
+			}
+			player_count++;
+		}
+		else
+			break;
+	}
+	return 0;
+}
 // returns a random value between 1 and 5
 
 int generate_prize()
@@ -413,8 +441,8 @@ void *computation(void *arg)
 
 
 int main(int argc, char* argv[]){
-	int fd, new_client, player_count=0;
-	pthread_t id[13];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: update players
+	int fd, new_client, socket_array[MAX_PLAYERS];
+	
 	// int fd, i,j,k, n, player_count=0, bot_count = 0, prize_count = 0;
 	// int temp_x, temp_y, rammed_player;//, prize_val;
 	// struct sockaddr_un client_addr;
@@ -438,18 +466,6 @@ int main(int argc, char* argv[]){
 	fd = create_socket(argc, argv);
 	if(listen(fd, 15)!=0)
 		perror("Listen\n");
-
-	while(1){
-		if (player_count < MAX_PLAYERS){
-			new_client = accept(fd, (struct sockaddr*)&serverStorage, &client_addr_size);
-			pthread_create (&id[player_count], NULL, computation, &messager); //should have message_process function
-		
-			recv(new_client, &cm, sizeof(client_message), 0); //dentro do respetivo thread??
-		}
-		else
-			break;
-	}
-
 
 	for(i=0; i<MAX_PLAYERS; i++) sm.players[i].c = '\0'; //Inicializing sm.players array
 	for(i=0; i<MAX_PRIZES; i++)
@@ -489,6 +505,7 @@ int main(int argc, char* argv[]){
 		wrefresh(message_win);
 	}
 
+	pthread_create(&id[13], NULL, tcp_accepter, &socket_array); //starts thread to check for new connections
 	pthread_create(&id[12], NULL, computation, &messager);  //starts thread that will compute 
 	pthread_create(&id[11], NULL, bot_gen, &messager);  //starts bot generating thread
 	pthread_create(&id[10], NULL, prize_gen, q);  // starts prize generating thread	
