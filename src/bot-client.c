@@ -47,9 +47,9 @@ int main(int argc, char **argv)
 
 	srand(time(NULL));
 
-	if(argc != 3)
+	if(argc != 3)	// cli arguments weren't correct
 	{
-		printf("./bot <server address> <number of bots");
+		printf("./bot <server address> <number of bots\n");
 		exit(0);
 	}
 	else
@@ -58,7 +58,7 @@ int main(int argc, char **argv)
         	strcpy(server_addr.sun_path, argv[1]);	
 	}
 
-	const int bot_count = atoi(argv[2]) <= 10 ? atoi(argv[2])-1 : 9;
+	const int bot_count = atoi(argv[2]) <= 10 ? atoi(argv[2])-1 : 9; //reads number of bots from cli
 	printf("%d\n", bot_count);
 	char bot_vector[bot_count];   
 
@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 	cm.arg = 'b';
 	cm.c = '0' + bot_count;	
 
-	do
+	do	// sends connecting message to server
 	{
 		n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 	}while(n==-1);
@@ -103,6 +103,7 @@ int main(int argc, char **argv)
         		}
 		}
 		
+	// this client sends 2 messages a first one to unlock the server, another with the directions
 	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
 	if(n == -1)
 	{

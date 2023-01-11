@@ -10,11 +10,17 @@
 
 WINDOW * message_win;
 
+//unused
 void new_player (player_position_t * player, char c){
     player->x = WINDOW_SIZE/2;
     player->y = WINDOW_SIZE/2;
     player->c = c;
 }
+
+/*
+ * Draws players in correct position if delete is true
+ * If delete if false the player will be deleted
+ */
 
 void draw_player(WINDOW *win, player_position_t * player, int delete){
     int ch;
@@ -30,7 +36,7 @@ void draw_player(WINDOW *win, player_position_t * player, int delete){
     wrefresh(win);
 }
 
-//Unused
+
 void moove_player (player_position_t * player, int direction){
     if (direction == KEY_UP){
         if (player->y  != 1){
@@ -59,44 +65,48 @@ void moove_player (player_position_t * player, int direction){
 Create a socket to be able to comunicate with clients
 */
 
-int create_socket()
+int create_socket() 
 {
 	int sock_fd;
-        sock_fd= socket(AF_UNIX, SOCK_DGRAM, 0);
-        if (sock_fd == -1){
-                perror("socket: ");
-                exit(-1);
-        }
+	//struct sockaddr_in address;
+	sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock_fd == -1){
+		perror("socket: ");
+		exit(-1);
+	}
 
-        struct sockaddr_un local_client_addr;
-        local_client_addr.sun_family = AF_UNIX;
-        sprintf(local_client_addr.sun_path, "/tmp/client_%d", getpid());
+	//address.sin_family = AF_INET;
+	//address.sin_addr.s_addr = argv[1];
+	//address.sin_port = argv[2];
 
-        unlink(local_client_addr.sun_path);
-        int err = bind(sock_fd, (struct sockaddr *)&local_client_addr,
-                                                        sizeof(local_client_addr));
-        if(err == -1) {
-                perror("bind");
-                exit(-1);
-        }
-
+	//unlink(SOCK_ADDRESS);
 	return sock_fd;
 }
 
 player_position_t p1;
 
-int main(){
+int main(int argc, char* argv[]){
 
 	int fd, n;
 	server_message sm;
 	client_message cm;
-	struct sockaddr_un server_addr;
+	struct sockaddr_in server_addr;
+	//socklen_t server_addr_size = sizeof(struct sockaddr_in);
 	int key;
 
 	fd = create_socket();
         
-	server_addr.sun_family = AF_UNIX;
-        strcpy(server_addr.sun_path, SOCK_ADDRESS);	
+	server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = argv[2];
+	server_addr.sin_port = argv[1];	
+
+	int conn_status = connect(fd, (struct sockaddr*)&server_addr,
+                            sizeof(server_addr));
+ 
+    // Check for connection error
+    if (conn_status < 0) {
+        perror("Error\n");
+    }
 
 	initscr();		    	/* Start curses mode 		*/
 	cbreak();				/* Line buffering disabled	*/
@@ -110,34 +120,32 @@ int main(){
     keypad(my_win, true);
     	
 	/* creates a window and draws a border */
-	message_win = newwin(5, WINDOW_SIZE, WINDOW_SIZE, 0);
+	message_win = newwin(12, WINDOW_SIZE, WINDOW_SIZE, 0);
 	box(message_win, 0 , 0);	
 	wrefresh(message_win);
 	
 	sm.type=2;	
-	do
+	do	// tries different characters until server accepts it, to avoid repeated characters
 	{
         	mvwprintw(message_win, 1,1,"Choose ur character(a-z)");
         	wrefresh(message_win);	
     		
         	key = wgetch(my_win);
-		if('a' <= tolower(key) && tolower(key) <= 'z')
+		if('a' <= tolower(key) && tolower(key) <= 'z') // only accepts characters from A-Z or a-z
 		{
-			//new_player(&p1, key);
-    			cm.type = 0;
+    			cm.type = 0;	// preparing connecting message
 			cm.arg = 'c';
 			cm.c = key;
    
-			n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
-			if(n == -1)//perror("Sendto error(please press ctrl+C)");
+			n = send(fd, &cm, sizeof(client_message), 0); 	
+			if(n == -1)	// no server is running 
 			{
 				printf("Server disconected\n");
 				return 0;
 			}
 			n = recv(fd, &sm, sizeof(server_message), 0);
-        		mvwprintw(message_win, 3,1,"Received mess type %d", sm.type);
 			if(n == -1)perror("Recv error(please press ctrl+C)");
-			else if(sm.type==1)
+			else if(sm.type==1)	// there are already 10 players
 			{
         			mvwprintw(message_win, 1,1,"Server full");
 				exit(0);
@@ -145,13 +153,14 @@ int main(){
 		}
 	}while(sm.type==2);
 		
-	mvwprintw(message_win, 1,1,"                                   ");
+	int count = 0;
+	werase(message_win);
 	box(message_win, 0 , 0);	
-	wrefresh(message_win);	
-
 	for(int i=0; i<MAX_PLAYERS; i++){ //update the screen
 		if(sm.players[i].c!='\0' && sm.players[i].health_bar>0){
 			draw_player(my_win, &sm.players[i], true);
+			count++;
+        		mvwprintw(message_win, count,1,"%c %d", sm.players[i].c, sm.players[i].health_bar);
 		}
 	}
 	for(int i=0; i<MAX_PRIZES; i++){ //update the screen
@@ -164,7 +173,7 @@ int main(){
 			draw_player(my_win, &sm.bots[i], true);
 		}
 	}
-	
+	wrefresh(message_win);	
 	cm.type = 1;	
 	while(key != 27 && key!= 'q'){ //awaits movement updates until disconnection or health_0
         	key = wgetch(my_win);
@@ -187,65 +196,72 @@ int main(){
 			break;
 
 		}
-		n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
+		n = send(fd, &cm, sizeof(client_message), 0);	
 		if(n == -1)perror("Send error(please press ctrl+C)");
         	
-		mvwprintw(message_win, 2,1,"%c key pressed", key);
-			
-		for(int i=0; i<MAX_PLAYERS; i++){ //clear the screen
+		// clear screen so we can print new screen	
+
+		for(int i=0; i<MAX_PLAYERS; i++){ 
 			if(sm.players[i].c!='\0'){
 				draw_player(my_win, &sm.players[i], false);
 			}
 		}
-		for(int i=0; i<MAX_PRIZES; i++){ //clear the screen
+		for(int i=0; i<MAX_PRIZES; i++){ 
 			//if(sm.prizes[i].c!='\0'){
 				draw_player(my_win, &sm.prizes[i], false);
 			//}
 		}
-		for(int i=0; i<MAX_BOTS; i++){ //clear the screen
+		for(int i=0; i<MAX_BOTS; i++){ 
 			if(sm.bots[i].c!='\0'){
 				draw_player(my_win, &sm.bots[i], false);
 			}
 		}
 		
 		n = recv(fd, &sm, sizeof(server_message), 0);
-		if(n == -1)perror("Recv error(please press ctrl+C)");
-		//mvwprintw(message_win, 1,1,"Received: %d %d", sm.type, sm.player_pos);
-		if(sm.player_pos==-1){
+		//if(n == -1)perror("Recv error(please press ctrl+C)");
+		if(sm.type==3){
+			werase(message_win);
+			box(message_win, 0 , 0);	
 			mvwprintw(message_win, 1,1,"HP - 0");
-			mvwprintw(message_win, 2,1,"Server Disconnected");
+			mvwprintw(message_win, 2,1,"Exiting");
 			wrefresh(message_win);	
 			sleep(5);
 			return 0;
 		}
-		mvwprintw(message_win, 1,1,"HP - %d ", sm.players[sm.player_pos].health_bar);
-        wrefresh(message_win);	
-
-		for(int i=0; i<MAX_PLAYERS; i++){ //update the screen
+	
+		count=0;	// update screen and players health
+		werase(message_win);
+		box(message_win, 0 , 0);	
+		for(int i=0; i<MAX_PLAYERS; i++){ 
 			if(sm.players[i].c!='\0' && sm.players[i].health_bar>0){
 				draw_player(my_win, &sm.players[i], true);
+				count++;
+        			mvwprintw(message_win, count,1,"%c %d", sm.players[i].c, sm.players[i].health_bar);
 			}
 		}
-		for(int i=0; i<MAX_PRIZES; i++){ //update the screen
-			if(sm.prizes[i].c!='\0'){
+		for(int i=0; i<MAX_PRIZES; i++){
+				if(sm.prizes[i].c!='\0'){
 				draw_player(my_win, &sm.prizes[i], true);
 			}
 		}
-		for(int i=0; i<MAX_BOTS; i++){ //update the screen
+		for(int i=0; i<MAX_BOTS; i++){ 
 			if(sm.bots[i].c!='\0'){
 				draw_player(my_win, &sm.bots[i], true);
 			}
 		}
+        	wrefresh(message_win);	
 	}
-
+	
 	cm.type = 0; 
 	cm.arg = 'd';
-	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
+	n = send(fd, &cm, sizeof(client_message), 0);	
 	if(n == -1)//perror("Send error(please press ctrl+C)");
 	{
-		mvwprintw(message_win, 2,1,"Server Disconnected");
+		werase(message_win);
+		box(message_win, 0 , 0);	
+		mvwprintw(message_win, 2,1,"Exiting Game");
 		wrefresh(message_win);	
-		sleep(5);
+		sleep(2);
 		return 0;
 	}	
 	return 0;
