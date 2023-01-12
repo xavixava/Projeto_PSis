@@ -8,6 +8,7 @@
 #include <time.h>
 #include <pthread.h>
 #include <arpa/inet.h>
+#include <string.h>
 
 #include "queue.h"
 #include "chase.h"
@@ -20,7 +21,7 @@ int player_count=0;
 int fd;
 server_message sm;
 pthread_t id[14];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: update players; 13: tcp listener
-
+int socket_array[MAX_PLAYERS];
 
 
 /*
@@ -407,16 +408,23 @@ void *computation(void *arg)
 
 void *cli_reciever(void *arg){
 	client_message cm;
-	int i, temp_x, temp_y, rammed_player;
-	int *cli_fd = arg;
+	int n, i, temp_x, temp_y, rammed_player;
+	int cli_fd = (int) arg;
+
+	mvwprintw(message_win, 2, 1, "still %d", cli_fd);
+	
 	while(1){
-	recv(*cli_fd, &cm, sizeof(client_message), 0);
+	n = recv(cli_fd, &cm, sizeof(client_message), 0);
+	// add read verification
+		
+	mvwprintw(message_win, 3, 1, "read stuff");
+	
 	switch (cm.type){
 		case 0: //Message about player's connection
 			if(cm.arg == 'c'){
 				if (player_count == MAX_PLAYERS){ // field is full		
 					sm.type = 2;	
-					//n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
+					// n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
 				}	
 				else if(search_player(sm.players, cm.c)==-1){ // accepted player	
 					i=0;
@@ -517,11 +525,12 @@ void *tcp_accepter(void *arg){
 	while(1){
 		if (player_count < MAX_PLAYERS){
 			new_client = accept(fd, (struct sockaddr*)&client_addr, &client_addr_size);
-			mvwprintw(message_win, 2,1,"New connection accepted");
 			for (int i=0; i<MAX_PLAYERS; i++){
 				if (socket[i]==0){
 					socket[i]=new_client;
-					pthread_create (&id[i], NULL, cli_reciever, &new_client);
+					mvwprintw(message_win, 1, 1, "accepted on descriptor %d", new_client);
+
+					pthread_create (&id[i], NULL, cli_reciever, socket[i]);
 				}
 			}
 			player_count++;
@@ -533,7 +542,7 @@ void *tcp_accepter(void *arg){
 }
 
 int main(int argc, char* argv[]){
-	int i, socket_array[MAX_PLAYERS];
+	int i; 
 	//struct sockaddr_storage serverStorage;
 	//socklen_t client_addr_size = sizeof(struct sockaddr_in);
 	char bot_message[MAX_BOTS];
@@ -553,6 +562,7 @@ int main(int argc, char* argv[]){
 	messager.bot_move = bot_message;
 	bot_nr = 10;
 
+	memset(socket_array, 0, MAX_PLAYERS*sizeof(int));
 
 	fd = create_socket(atoi(argv[1]));
 	if(listen(fd, 15)!=0)

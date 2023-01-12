@@ -103,7 +103,7 @@ int main(int argc, char* argv[]){
 
 	if(argc != 3)
 	{
-		printf("./src/chase-client.c <ip> <port>");
+		printf("./src/chase-client.c <ip> <port>\n");
 		exit(0);
 	}
 	
@@ -140,6 +140,8 @@ int main(int argc, char* argv[]){
     			cm.type = 0;	// preparing connecting message
 			cm.arg = 'c';
 			cm.c = key;
+        		
+			mvwprintw(message_win, 2,1,"Selected %c", cm.c);
    
 			n = send(fd, &cm, sizeof(client_message), 0); 	
 			if(n == -1)	// no server is running 
