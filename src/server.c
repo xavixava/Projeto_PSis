@@ -17,6 +17,8 @@
 extern int errno;
 WINDOW * message_win;
 WINDOW *my_win;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
 
 short bot_nr;
 int player_count=0;
@@ -80,7 +82,9 @@ void *bot_gen(void *arg)
 		}
 		
     		// warn queue
+		pthread_mutex_lock(&lock);
 		InsertLast(q, &bot_warn);
+		pthread_mutex_unlock(&lock);
 	}
 
  
@@ -113,7 +117,9 @@ void *prize_gen(void *arg)
         	sleep(5);	
 		prize[i].c = '0' + generate_prize();	
 		// put prize in the queue
+		pthread_mutex_lock(&lock);
 		InsertLast(q, &prize[i]);
+		pthread_mutex_unlock(&lock);
 		i = (i >= 9) ? 0 : i+1;
 		mvwprintw(message_win, 5,1,"%d", i);
 	}
@@ -367,7 +373,10 @@ void *computation(void *arg)
 	
 	while(1)
 	{
+		pthread_mutex_unlock(&lock);
+		// todo: if empty add wait here
 		current_player = GetFirst(q);  // gets most prioritary element from FIFO
+		pthread_mutex_unlock(&lock);
 
 		if(current_player != NULL)
 		{
@@ -425,8 +434,10 @@ void *update_players(void *arg)
 	for(i=0; i<MAX_PLAYERS; i++)
 	{
 		if(socket_array[i]!=0)
-		{	
+		{
+			pthread_mutex_lock(&lock);	
 			message = sm;
+			pthread_mutex_unlock(&lock);
 			message.type = 4;
 			n = write(fd, &message, sizeof(server_message));
 			if(n==-1)
@@ -435,7 +446,7 @@ void *update_players(void *arg)
 			}
 		}	
 	}
-	// add a count to check if it was sent to all players
+	// todo: add a count to check if it was sent to all players
 	return NULL;
 }
 
