@@ -3,9 +3,12 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <sys/un.h>
 #include <time.h>
 #include <pthread.h>
+#include <arpa/inet.h>
+#include <string.h>
 
 #include "queue.h"
 #include "chase.h"
@@ -14,7 +17,11 @@ WINDOW * message_win;
 WINDOW *my_win;
 
 short bot_nr;
+int player_count=0;
+int fd;
 server_message sm;
+pthread_t id[14];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: update players; 13: tcp listener
+int socket_array[MAX_PLAYERS];
 
 
 /*
@@ -31,7 +38,6 @@ typedef struct thread_com{
  * Chooses which direction the bots will move to
  * Informs the thread that computes all this via queue
  */
-
 void *bot_gen(void *arg)
 {	
 	thread_com *c = arg;
@@ -43,12 +49,11 @@ void *bot_gen(void *arg)
 	bot_warn.x = 0;
 	bot_warn.y = 0;
 	bot_warn.c = '*';
-        bot_warn.health_bar = -1;	
+	bot_warn.health_bar = -1;	
 
 	srand(time(NULL));
 
-    	while (1)
-    	{
+	while (1){
 		// every 3 seconds move the bots
 		sleep(3);
 		for(i=0; i < bot_nr; i++)
@@ -80,11 +85,9 @@ void *bot_gen(void *arg)
 	return 0;
 }
 
-
-// returns a random value between 1 and 5
-
 int generate_prize()
 {
+	// returns a random value between 1 and 5
 	return (random()%5)+1;
 }
 
@@ -125,7 +128,7 @@ void update_health(player_position_t * player, int collision_type){
 		player->health_bar--;
 	}else if(collision_type==0){ //got hit by bot
 		player->health_bar--;
-	}else if(collision_type>0&&collision_type<=5){ //hit prize (collision_type is the value of the prize)
+	}else if(collision_type>0 && collision_type<=5){ //hit prize (collision_type is the value of the prize)
 		player->health_bar+=collision_type;
 	}
 
@@ -136,7 +139,6 @@ void update_health(player_position_t * player, int collision_type){
 		player->health_bar=10;
 	}
 }
-
 
 /*
 Checks if there's a element in the current player position, 
@@ -311,40 +313,38 @@ void moove_player (player_position_t * player, char direction){
 
 /*
 Create a socket to be able to comunicate with clients
+Server's port and address are provided as arguments in command line
 */
+int create_socket(int port){
+	int sock_fd, serv_port, serv_addr;
+	struct sockaddr_in address;
+	
+	sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+	
+	if (sock_fd == -1){
+		perror("socket: ");
+		exit(-1);
+	}
 
-int create_socket()
-{
-	int sock_fd;
-        sock_fd= socket(AF_UNIX, SOCK_DGRAM, 0);
-        if (sock_fd == -1){
-                perror("socket: ");
-                exit(-1);
-        }
-
-        struct sockaddr_un local_addr;
-        local_addr.sun_family = AF_UNIX;
-        strcpy(local_addr.sun_path, SOCK_ADDRESS);
-
-        unlink(SOCK_ADDRESS);
-        int err = bind(sock_fd, (struct sockaddr *)&local_addr,
-                                                        sizeof(local_addr));
-        if(err == -1) {
-                perror("bind");
-                exit(-1);
-        }
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = htonl(INADDR_ANY);
+ 	address.sin_port = htons(port);
+ 
+	int err = bind(sock_fd, (struct sockaddr *)&address, sizeof(address));
+	if(err == -1) {
+		perror("bind");
+		exit(-1);
+	}
 	return sock_fd;
 }
 
-int search_player(player_position_t vector[], char c)
-{
+int search_player(player_position_t vector[], char c){
 	int i;
 	for(i=0; i<MAX_PLAYERS; i++)if(vector[i].c==c) return i;
 	return -1;
 }
 
-void clear_hp_changes(int vector[])
-{
+void clear_hp_changes(int vector[]){
 	int i;
 	for(i=0; i<MAX_PLAYERS; i++) vector[i]=0;
 }
@@ -353,7 +353,6 @@ void clear_hp_changes(int vector[])
  * This function will be used for the health and position computations
  * it will receive a queue and a vector with changes of positions for the bots
  */
-
 void *computation(void *arg)
 {
 	thread_com *c = arg;
@@ -407,48 +406,183 @@ void *computation(void *arg)
 
 }
 
+void *cli_reciever(void *arg){
+	client_message cm;
+	int n, i, temp_x, temp_y, rammed_player;
+	int cli_fd = (int) arg;
 
-int main(){
+	mvwprintw(message_win, 2, 1, "still %d", cli_fd);
+	
+	while(1){
+	n = recv(cli_fd, &cm, sizeof(client_message), 0);
+	// add read verification
+		
+	mvwprintw(message_win, 3, 1, "read stuff");
+	
+	switch (cm.type){
+		case 0: //Message about player's connection
+			if(cm.arg == 'c'){
+				if (player_count == MAX_PLAYERS){ // field is full		
+					sm.type = 2;	
+					// n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
+				}	
+				else if(search_player(sm.players, cm.c)==-1){ // accepted player	
+					i=0;
+					while(sm.players[i].c!='\0' && i<MAX_PLAYERS) i++;
+					new_player (0, i, cm.c);
+					//mvwprintw(message_win, 2,1,"player %c joined", cm.c);
+					sm.type = 0;	
+					//mvwprintw(message_win, 3,1,"%s", client_addr.sun_path);
+					
+					//n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
+					//if(n==-1)perror("sendto error");
+					
+					draw_player(my_win, &sm.players[i], true);
+					player_count++;
+				}
+				else	// repeated character
+				{
+					sm.type = 2;
+					//n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
+					//if(n==-1)perror("sendto error");
+				}	
+			}
+			else if (cm.arg == 'd')	// disconect player
+			{
+				i = search_player(sm.players, cm.c);
+				if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
+				else 
+				{
+					draw_player(my_win, &sm.players[i], false);
+					mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
+					sm.players[i].c = '\0';
+					player_count--;
+					return 0;
+				}
+			}
+			else mvwprintw(message_win, 2,1,"Message poorly formatted.");
+		break;
 
-	pthread_t id[13];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: update players
-	// int fd, i,j,k, n, player_count=0, bot_count = 0, prize_count = 0;
-	// int temp_x, temp_y, rammed_player;//, prize_val;
-	// struct sockaddr_un client_addr;
-        // socklen_t client_addr_size = sizeof(struct sockaddr_un);
-	// client_message cm;
-	// server_message sm;
-	//player_position_t players[MAX_PLAYERS];
+		//!!!!Move this to computation
+		case 1: //Message about player's movement
+				i = search_player(sm.players, cm.c);
+				if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
+				else
+				{//move player accordingly and check for collisions
+					temp_x=sm.players[i].x;
+					temp_y=sm.players[i].y;
+					draw_player(my_win, &sm.players[i], false);
+					moove_player (&sm.players[i], cm.arg);
+					rammed_player = check_collision(0, i);
+
+					if(rammed_player>-1 && rammed_player<MAX_PLAYERS){//collided with player
+						if(sm.players[rammed_player].health_bar!=0){
+							sm.players[i].x=temp_x;
+							sm.players[i].y=temp_y;
+							update_health(&sm.players[i], -2);
+							update_health(&sm.players[rammed_player], -1);
+						}
+					
+					}else if(rammed_player==-1){//colided with bot
+						sm.players[i].x=temp_x;
+						sm.players[i].y=temp_y;
+					}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){//found prize
+						update_health(&sm.players[i], sm.prizes[rammed_player-MAX_PLAYERS].health_bar);
+						draw_player(my_win, &sm.prizes[rammed_player-MAX_PLAYERS], false);
+						sm.prizes[rammed_player-MAX_PLAYERS].c='\0';
+						//prize_count--;
+					}
+					}
+					draw_player(my_win, &sm.players[i], true);
+				
+					if (sm.players[i].health_bar<=0){//Reached 0HP disconnected
+						draw_player(my_win, &sm.players[i], false);
+						mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
+						sm.players[i].c = '\0';
+						player_count--;
+						sm.type = 3;
+						//sm.player_pos=-1;
+					}else{//Send the player its and the field's updated status
+
+					mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
+					sm.type = 3;
+					//sm.player_pos=i;
+					}
+
+					//n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
+				//if(n==-1)perror("sendto error");
+		break;
+	}
+	//InsertLast(q, &cm);
+	}
+}
+
+void *tcp_accepter(void *arg){
+	int *socket = arg;
+	int new_client;
+	struct sockaddr_in client_addr;
+	socklen_t client_addr_size = sizeof(struct sockaddr_in);
+	while(1){
+		if (player_count < MAX_PLAYERS){
+			new_client = accept(fd, (struct sockaddr*)&client_addr, &client_addr_size);
+			for (int i=0; i<MAX_PLAYERS; i++){
+				if (socket[i]==0){
+					socket[i]=new_client;
+					mvwprintw(message_win, 1, 1, "accepted on descriptor %d", new_client);
+
+					pthread_create (&id[i], NULL, cli_reciever, socket[i]);
+				}
+			}
+			player_count++;
+		}
+		else
+			break;
+	}
+	return 0;
+}
+
+int main(int argc, char* argv[]){
+	int i; 
+	//struct sockaddr_storage serverStorage;
+	//socklen_t client_addr_size = sizeof(struct sockaddr_in);
 	char bot_message[MAX_BOTS];
 	thread_com messager; //will be used for thread communication
 	Queue *q;
-	int i;
 
 	srand(time(NULL));
+	
+	if(argc!=2)
+	{
+		printf("./server/server <PORT NUMBER>\n");
+		exit(0);
+	}
 
 	q = QueueNew();	
 	messager.q = q;
 	messager.bot_move = bot_message;
 	bot_nr = 10;
 
-	for(i=0; i<MAX_PLAYERS; i++) sm.players[i].c = '\0'; //Inicializing sm.players array
-	for(i=0; i<MAX_PRIZES; i++)
-	{ 
+	memset(socket_array, 0, MAX_PLAYERS*sizeof(int));
+
+	fd = create_socket(atoi(argv[1]));
+	if(listen(fd, 15)!=0)
+		perror("Listen\n");
+
+	//Inicializing sm.players array
+	for(i=0; i<MAX_PLAYERS; i++) sm.players[i].c = '\0'; 
+	//Inicializing sm.prizes array
+	for(i=0; i<MAX_PRIZES; i++){ 
 		sm.prizes[i].c = '\0';
 		sm.prizes[i].x = 1;
 		sm.prizes[i].y = 1;
 	}
+	//Inicializing sm.bots array
 	for(i=0; i<MAX_BOTS; i++) sm.bots[i].c = '\0';
-	/*
-	for(i=0; i<bot_nr; i++){ 
-		new_player (1, i, '*');
-		printf("Bot in x:%d y:%d", sm.bots[i].x, sm.bots[i].y);
-		sleep(1);
-	}*/
 
-	initscr();		/* Start curses mode 		*/
-	cbreak();		/* Line buffering disabled	*/
+	initscr();				/* Start curses mode 		*/
+	cbreak();				/* Line buffering disabled	*/
 	keypad(stdscr, TRUE);   /* We get F1, F2 etc..		*/
-	noecho();		/* Don't echo() while we do getch */
+	noecho();				/* Don't echo() while we do getch */
 
 	/* creates a window and draws a border */
 	my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
@@ -468,128 +602,12 @@ int main(){
 		wrefresh(message_win);
 	}
 
-	pthread_create(&id[12], NULL, computation, &messager);  //starts thread that will compute 
-	pthread_create(&id[11], NULL, bot_gen, &messager);  //starts bot generating thread
-	pthread_create(&id[10], NULL, prize_gen, q);  // starts prize generating thread	
+	pthread_create(&id[13], NULL, tcp_accepter, &socket_array); //starts thread to check for new connections
+	pthread_create(&id[12], NULL, computation, &messager);  	//starts thread that will compute 
+	pthread_create(&id[11], NULL, bot_gen, &messager);  		//starts bot generating thread
+	pthread_create(&id[10], NULL, prize_gen, q);  				//starts prize generating thread	
 	
-    	pthread_join(id[12], NULL);
-	/*
-	while(1){
-		//awaits for message from prizes, bots or players
-		 n = recvfrom(fd, &cm, sizeof(client_message), 0, ( struct sockaddr *)&client_addr, &client_addr_size);
-		if(n == -1)perror("recv error(please press ctrl+C)");
-			
-		mvwprintw(message_win, 1,1,"Received: %d %c %c", cm.type, cm.arg, cm.c);
-
-		switch (cm.type)
-		{
-			case 0: //Message about player's/bot's connection
-				if(cm.arg == 'c')
-				{
-					if (player_count == MAX_PLAYERS) // field is full
-					{		
-						sm.type = 2;	
-						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
-					}	
-					else if(search_player(sm.players, cm.c)==-1) // accepted player
-					{	
-						i=0;
-						while(sm.players[i].c!='\0' && i<MAX_PLAYERS) i++;
-						new_player (&sm, 0, i, cm.c);
-						mvwprintw(message_win, 2,1,"player %c joined", cm.c);
-						
-						sm.type = 0;
-							
-						mvwprintw(message_win, 3,1,"%s", client_addr.sun_path);
-						
-						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
-						if(n==-1)perror("sendto error");
-						
-						draw_player(my_win, &sm.players[i], true);
-						player_count++;
-					}
-					else	// repeated character
-					{
-						sm.type = 2;
-						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
-						if(n==-1)perror("sendto error");
-					}	
-				}
-				else if (cm.arg == 'd')	// disconect player
-				{
-					i = search_player(sm.players, cm.c);
-					if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
-					else 
-					{
-						draw_player(my_win, &sm.players[i], false);
-						mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
-						sm.players[i].c = '\0';
-						player_count--;
-					}
-				}
-			case 1: //Message about player's/bot's movement
-				else // received a player_movement message
-				{	i = search_player(sm.players, cm.c);
-					if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
-					else
-					{
-						if (sm.players[i].health_bar<=0){ //player has 0 health it is disconnected
-							draw_player(my_win, &sm.players[i], false);
-							mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
-							sm.players[i].c = '\0';
-							player_count--;
-							sm.type = 3;
-							sm.player_pos=-1;
-						}else{ //move player accordingly and check for collisions
-							temp_x=sm.players[i].x;
-							temp_y=sm.players[i].y;
-							draw_player(my_win, &sm.players[i], false);
-							moove_player (&sm.players[i], cm.arg);
-							rammed_player = check_collision(&sm, 0, i);
-
-							if(rammed_player>-1 && rammed_player<MAX_PLAYERS){//collided with player
-								if(sm.players[rammed_player].health_bar!=0){
-									sm.players[i].x=temp_x;
-									sm.players[i].y=temp_y;
-									update_health(&sm.players[i], -2);
-									update_health(&sm.players[rammed_player], -1);
-								}
-							
-							}else if(rammed_player==-1){//colided with bot
-								sm.players[i].x=temp_x;
-								sm.players[i].y=temp_y;
-							}else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES){//found prize
-								update_health(&sm.players[i], sm.prizes[rammed_player-MAX_PLAYERS].health_bar);
-								draw_player(my_win, &sm.prizes[rammed_player-MAX_PLAYERS], false);
-								sm.prizes[rammed_player-MAX_PLAYERS].c='\0';
-								prize_count--;
-							}
-							}
-							draw_player(my_win, &sm.players[i], true);
-						
-							if (sm.players[i].health_bar<=0){//Reached 0HP disconnected
-								draw_player(my_win, &sm.players[i], false);
-								mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
-								sm.players[i].c = '\0';
-								player_count--;
-								sm.type = 3;
-								sm.player_pos=-1;
-							}else{//Send the player its and the field's updated status
-
-							mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
-							sm.type = 3;
-							sm.player_pos=i;
-							}
-						}
-
-						n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
-					if(n==-1)perror("sendto error");
-				}
-			break;
-		} 
-		wrefresh(message_win);
-		memset(client_addr.sun_path, '\0', 108);
-	}*/
+	pthread_join(id[12], NULL);
 
     freeQueue(q);
     exit(0);

@@ -5,7 +5,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <ctype.h>
-
+#include <arpa/inet.h>
 #include "chase.h"
 
 WINDOW * message_win;
@@ -65,44 +65,52 @@ void moove_player (player_position_t * player, int direction){
 Create a socket to be able to comunicate with clients
 */
 
-int create_socket()
-{
-	int sock_fd;
-        sock_fd= socket(AF_UNIX, SOCK_DGRAM, 0);
-        if (sock_fd == -1){
-                perror("socket: ");
-                exit(-1);
-        }
+int create_socket(char *ip, int port){
+	int sock_fd, serv_port, serv_addr;
+	struct sockaddr_in address;
+	
+	sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+	
+	if (sock_fd == -1){
+		perror("socket: ");
+		exit(-1);
+	}
 
-        struct sockaddr_un local_client_addr;
-        local_client_addr.sun_family = AF_UNIX;
-        sprintf(local_client_addr.sun_path, "/tmp/client_%d", getpid());
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = inet_addr(ip);
+	address.sin_port = htons(port);
 
-        unlink(local_client_addr.sun_path);
-        int err = bind(sock_fd, (struct sockaddr *)&local_client_addr,
-                                                        sizeof(local_client_addr));
-        if(err == -1) {
-                perror("bind");
-                exit(-1);
-        }
+	int conn_status = connect(sock_fd, (struct sockaddr *)&address, sizeof(address));
+ 
+    // Check for connection error
+    if (conn_status < 0) {
+        perror("Error\n");
+    }
 
 	return sock_fd;
 }
 
 player_position_t p1;
 
-int main(){
+int main(int argc, char* argv[]){
 
 	int fd, n;
 	server_message sm;
 	client_message cm;
-	struct sockaddr_un server_addr;
+	//struct sockaddr_in server_addr;
+	//socklen_t server_addr_size = sizeof(struct sockaddr_in);
 	int key;
 
-	fd = create_socket();
-        
-	server_addr.sun_family = AF_UNIX;
-        strcpy(server_addr.sun_path, SOCK_ADDRESS);	
+	if(argc != 3)
+	{
+		printf("./src/chase-client.c <ip> <port>\n");
+		exit(0);
+	}
+	
+	// todo: still lacks ip and port verification
+
+	fd = create_socket(argv[1], atoi(argv[2]));
+
 
 	initscr();		    	/* Start curses mode 		*/
 	cbreak();				/* Line buffering disabled	*/
@@ -132,8 +140,10 @@ int main(){
     			cm.type = 0;	// preparing connecting message
 			cm.arg = 'c';
 			cm.c = key;
+        		
+			mvwprintw(message_win, 2,1,"Selected %c", cm.c);
    
-			n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr)); 	
+			n = send(fd, &cm, sizeof(client_message), 0); 	
 			if(n == -1)	// no server is running 
 			{
 				printf("Server disconected\n");
@@ -192,7 +202,7 @@ int main(){
 			break;
 
 		}
-		n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
+		n = send(fd, &cm, sizeof(client_message), 0);	
 		if(n == -1)perror("Send error(please press ctrl+C)");
         	
 		// clear screen so we can print new screen	
@@ -250,7 +260,7 @@ int main(){
 	
 	cm.type = 0; 
 	cm.arg = 'd';
-	n = sendto(fd, &cm, sizeof(client_message), 0, (const struct sockaddr *) &server_addr, sizeof(server_addr));	
+	n = send(fd, &cm, sizeof(client_message), 0);	
 	if(n == -1)//perror("Send error(please press ctrl+C)");
 	{
 		werase(message_win);
