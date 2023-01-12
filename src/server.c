@@ -9,10 +9,12 @@
 #include <pthread.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <errno.h>
 
 #include "queue.h"
 #include "chase.h"
 
+extern int errno;
 WINDOW * message_win;
 WINDOW *my_win;
 
@@ -406,6 +408,15 @@ void *computation(void *arg)
 
 }
 
+void error_msg()
+{
+	char message[36];
+	memset(message, '\0', 36);
+	strcat(message, strerror(errno));
+	mvwprintw(message_win, 4, 1, "%s\n", message);
+	return;
+}
+
 void *update_players(void *arg)
 {
 	int i, n;
@@ -418,7 +429,10 @@ void *update_players(void *arg)
 			message = sm;
 			message.type = 4;
 			n = write(fd, &message, sizeof(server_message));
-			// todo: add write verification
+			if(n==-1)
+			{
+				error_msg();	
+			}
 		}	
 	}
 	// add a count to check if it was sent to all players
