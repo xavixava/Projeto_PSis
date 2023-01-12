@@ -65,11 +65,9 @@ void moove_player (player_position_t * player, int direction){
 Create a socket to be able to comunicate with clients
 */
 
-int create_socket(int argc, char *argv[]){
-	int sock_fd, serv_port, serv_addr;
+int create_socket(char *ip, int port){
+	int sock_fd;
 	struct sockaddr_in address;
-	serv_port=atoi(argv[1]);
-	serv_addr=atoi(argv[2]);
 	
 	sock_fd = socket(AF_INET, SOCK_STREAM, 0);
 	
@@ -79,8 +77,8 @@ int create_socket(int argc, char *argv[]){
 	}
 
 	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = serv_port;
-	address.sin_port = serv_addr;
+	address.sin_addr.s_addr = inet_addr(ip);
+	address.sin_port = htons(port);
 
 	int conn_status = connect(sock_fd, (struct sockaddr *)&address, sizeof(address));
  
@@ -103,9 +101,15 @@ int main(int argc, char* argv[]){
 	//socklen_t server_addr_size = sizeof(struct sockaddr_in);
 	int key;
 
-	fd = create_socket(argc, argv);
+	if(argc != 3)
+	{
+		printf("./src/chase-client.c <ip> <port>\n");
+		exit(0);
+	}
+	
+	// todo: still lacks ip and port verification
 
-
+	fd = create_socket(argv[1], atoi(argv[2]));
 
 
 	initscr();		    	/* Start curses mode 		*/
@@ -136,6 +140,8 @@ int main(int argc, char* argv[]){
     			cm.type = 0;	// preparing connecting message
 			cm.arg = 'c';
 			cm.c = key;
+        		
+			mvwprintw(message_win, 2,1,"Selected %c", cm.c);
    
 			n = send(fd, &cm, sizeof(client_message), 0); 	
 			if(n == -1)	// no server is running 
