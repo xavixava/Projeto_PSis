@@ -5,7 +5,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <ctype.h>
-
+#include <arpa/inet.h>
 #include "chase.h"
 
 WINDOW * message_win;
@@ -65,21 +65,30 @@ void moove_player (player_position_t * player, int direction){
 Create a socket to be able to comunicate with clients
 */
 
-int create_socket() 
-{
-	int sock_fd;
-	//struct sockaddr_in address;
+int create_socket(int argc, char *argv[]){
+	int sock_fd, serv_port, serv_addr;
+	struct sockaddr_in address;
+	serv_port=atoi(argv[1]);
+	serv_addr=atoi(argv[2]);
+	
 	sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+	
 	if (sock_fd == -1){
 		perror("socket: ");
 		exit(-1);
 	}
 
-	//address.sin_family = AF_INET;
-	//address.sin_addr.s_addr = argv[1];
-	//address.sin_port = argv[2];
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = serv_port;
+	address.sin_port = serv_addr;
 
-	//unlink(SOCK_ADDRESS);
+	int conn_status = connect(sock_fd, (struct sockaddr *)&address, sizeof(address));
+ 
+    // Check for connection error
+    if (conn_status < 0) {
+        perror("Error\n");
+    }
+
 	return sock_fd;
 }
 
@@ -90,23 +99,14 @@ int main(int argc, char* argv[]){
 	int fd, n;
 	server_message sm;
 	client_message cm;
-	struct sockaddr_in server_addr;
+	//struct sockaddr_in server_addr;
 	//socklen_t server_addr_size = sizeof(struct sockaddr_in);
 	int key;
 
-	fd = create_socket();
-        
-	server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = argv[2];
-	server_addr.sin_port = argv[1];	
+	fd = create_socket(argc, argv);
 
-	int conn_status = connect(fd, (struct sockaddr*)&server_addr,
-                            sizeof(server_addr));
- 
-    // Check for connection error
-    if (conn_status < 0) {
-        perror("Error\n");
-    }
+
+
 
 	initscr();		    	/* Start curses mode 		*/
 	cbreak();				/* Line buffering disabled	*/
