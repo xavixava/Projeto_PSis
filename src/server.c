@@ -406,6 +406,26 @@ void *computation(void *arg)
 
 }
 
+void *update_players(void *arg)
+{
+	int i, n;
+	server_message message;
+
+	for(i=0; i<MAX_PLAYERS; i++)
+	{
+		if(socket_array[i]!=0)
+		{	
+			message = sm;
+			message.type = 4;
+			n = write(fd, &message, sizeof(server_message));
+			// todo: add write verification
+		}	
+	}
+	// add a count to check if it was sent to all players
+	return NULL;
+}
+
+
 void *cli_reciever(void *arg){
 	client_message cm;
 	int n, i, temp_x, temp_y, rammed_player;
@@ -462,8 +482,9 @@ void *cli_reciever(void *arg){
 			}
 			else mvwprintw(message_win, 2,1,"Message poorly formatted.");
 		break;
-
+		
 		//!!!!Move this to computation
+		/*
 		case 1: //Message about player's movement
 				i = search_player(sm.players, cm.c);
 				if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
@@ -512,13 +533,16 @@ void *cli_reciever(void *arg){
 					//n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 				//if(n==-1)perror("sendto error");
 		break;
+	*/
 	}
 	//InsertLast(q, &cm);
 	}
 }
 
+
+
 void *tcp_accepter(void *arg){
-	int *socket = arg;
+	// int *socket = arg;
 	int new_client;
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size = sizeof(struct sockaddr_in);
@@ -526,11 +550,11 @@ void *tcp_accepter(void *arg){
 		if (player_count < MAX_PLAYERS){
 			new_client = accept(fd, (struct sockaddr*)&client_addr, &client_addr_size);
 			for (int i=0; i<MAX_PLAYERS; i++){
-				if (socket[i]==0){
-					socket[i]=new_client;
+				if (socket_array[i]==0){
+					socket_array[i]=new_client;
 					mvwprintw(message_win, 1, 1, "accepted on descriptor %d", new_client);
 
-					pthread_create (&id[i], NULL, cli_reciever, socket[i]);
+					pthread_create (&id[i], NULL, cli_reciever, socket_array[i]);
 				}
 			}
 			player_count++;
@@ -541,7 +565,11 @@ void *tcp_accepter(void *arg){
 	return 0;
 }
 
-int main(int argc, char* argv[]){
+
+
+
+int main(int argc, char* argv[])
+{
 	int i; 
 	//struct sockaddr_storage serverStorage;
 	//socklen_t client_addr_size = sizeof(struct sockaddr_in);
@@ -602,7 +630,7 @@ int main(int argc, char* argv[]){
 		wrefresh(message_win);
 	}
 
-	pthread_create(&id[13], NULL, tcp_accepter, &socket_array); //starts thread to check for new connections
+	pthread_create(&id[13], NULL, tcp_accepter, NULL); //starts thread to check for new connections
 	pthread_create(&id[12], NULL, computation, &messager);  	//starts thread that will compute 
 	pthread_create(&id[11], NULL, bot_gen, &messager);  		//starts bot generating thread
 	pthread_create(&id[10], NULL, prize_gen, q);  				//starts prize generating thread	
