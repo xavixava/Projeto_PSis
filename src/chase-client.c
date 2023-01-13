@@ -204,7 +204,7 @@ int main(int argc, char* argv[]){
 			cm.arg = 'c';
 			cm.c = key;
         		
-			mvwprintw(message_win, 2,1,"Selected %c", cm.c);
+			mvwprintw(message_win, 3,1,"Selected %c", cm.c);
    
 			n = write(fd, &cm, sizeof(client_message)); 	
 			// todo: add verification	
