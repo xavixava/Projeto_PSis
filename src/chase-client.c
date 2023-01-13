@@ -85,6 +85,7 @@ int create_socket(char *ip, int port){
     // Check for connection error
     if (conn_status < 0) {
         perror("Error\n");
+		exit(0);
     }
 
 	return sock_fd;
@@ -143,13 +144,13 @@ int main(int argc, char* argv[]){
         		
 			mvwprintw(message_win, 2,1,"Selected %c", cm.c);
    
-			n = send(fd, &cm, sizeof(client_message), 0); 	
+			n = write(fd, &cm, sizeof(client_message)); 	
 			if(n == -1)	// no server is running 
 			{
 				printf("Server disconected\n");
 				return 0;
 			}
-			n = recv(fd, &sm, sizeof(server_message), 0);
+			n = read(fd, &sm, sizeof(server_message));
 			if(n == -1)perror("Recv error(please press ctrl+C)");
 			else if(sm.type==1)	// there are already 10 players
 			{
@@ -202,7 +203,7 @@ int main(int argc, char* argv[]){
 			break;
 
 		}
-		n = send(fd, &cm, sizeof(client_message), 0);	
+		n = write(fd, &cm, sizeof(client_message));	
 		if(n == -1)perror("Send error(please press ctrl+C)");
         	
 		// clear screen so we can print new screen	
@@ -223,7 +224,7 @@ int main(int argc, char* argv[]){
 			}
 		}
 		
-		n = recv(fd, &sm, sizeof(server_message), 0);
+		n = read(fd, &sm, sizeof(server_message));
 		//if(n == -1)perror("Recv error(please press ctrl+C)");
 		if(sm.type==3){
 			werase(message_win);
@@ -260,7 +261,7 @@ int main(int argc, char* argv[]){
 	
 	cm.type = 0; 
 	cm.arg = 'd';
-	n = send(fd, &cm, sizeof(client_message), 0);	
+	n = write(fd, &cm, sizeof(client_message));	
 	if(n == -1)//perror("Send error(please press ctrl+C)");
 	{
 		werase(message_win);

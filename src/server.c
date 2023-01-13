@@ -21,7 +21,7 @@ short bot_nr;
 int player_count=0;
 int fd;
 server_message sm;
-pthread_t id[14];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: computation; 13: tcp listener; 14: update players
+pthread_t id[15];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: computation; 13: tcp listener; 14: update players
 int socket_array[MAX_PLAYERS];
 
 
@@ -361,7 +361,7 @@ void *update_players(void *arg)
 		{	
 			message = sm;
 			message.type = 4;
-			n = send(socket_array[i], &message, sizeof(server_message), 0);
+			n = write(socket_array[i], &message, sizeof(server_message));
 			// todo: add write verification
 		}	
 	}
@@ -479,11 +479,11 @@ void *cli_reciever(void *arg){
 	client_message cm;
 	int n;
 	int *player_pos = arg; //makes sure that a new player is in the same position in socket_array[i], thread id[i] and sm.players[i] 
-
+	
 	mvwprintw(message_win, 2, 1, "still %d", socket_array[*player_pos]);
 	
 	while(1){
-	n = recv(socket_array[*player_pos], &cm, sizeof(client_message), 0);
+	n = read(socket_array[*player_pos], &cm, sizeof(client_message));
 	// add read verification
 		
 	mvwprintw(message_win, 3, 1, "read stuff");
@@ -501,7 +501,7 @@ void *cli_reciever(void *arg){
 					sm.type = 0;	
 					//mvwprintw(message_win, 3,1,"%s", client_addr.sun_path);
 					
-					n = send(socket_array[*player_pos], &sm, sizeof(server_message), 0);
+					n = write(socket_array[*player_pos], &sm, sizeof(server_message));
 					if(n==-1)perror("sendto error");
 					
 					draw_player(my_win, &sm.players[*player_pos], true);
@@ -510,7 +510,7 @@ void *cli_reciever(void *arg){
 				else	// repeated character
 				{
 					sm.type = 2;
-					n = send(socket_array[*player_pos], &sm, sizeof(server_message),0);
+					n = write(socket_array[*player_pos], &sm, sizeof(server_message));
 					if(n==-1)perror("sendto error");
 				}	
 			}
@@ -535,6 +535,9 @@ void *cli_reciever(void *arg){
 			//cm.arg	
 			InsertLast(q, &sm.players[*player_pos]);
 		break;
+		default:
+			return 0;
+			break;
 	}
 	}
 }
@@ -551,9 +554,10 @@ void *tcp_accepter(void *arg){
 			for ( i=0; i<MAX_PLAYERS; i++){
 				if (socket_array[i]==0){
 					socket_array[i]=new_client;
-					mvwprintw(message_win, 1, 1, "accepted on descriptor %d", new_client);
+					mvwprintw(message_win, 6, 1, "accepted on descriptor %d", new_client);
 
 					pthread_create (&id[i], NULL, cli_reciever, &i);
+					break;
 				}
 			}
 			//player_count++;
