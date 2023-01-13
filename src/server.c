@@ -11,8 +11,14 @@
 #include <string.h>
 #include <errno.h>
 
+
 #include "queue.h"
 #include "chase.h"
+
+WINDOW * message_win;
+WINDOW *my_win;
+
+Queue *q;
 
 extern int errno;
 WINDOW * message_win;
@@ -25,6 +31,7 @@ int player_count=0;
 int fd;
 server_message sm;
 pthread_t id[14];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: update players; 13: tcp listener
+
 int socket_array[MAX_PLAYERS];
 
 
@@ -45,6 +52,7 @@ typedef struct thread_com{
 void *bot_gen(void *arg)
 {	
 	thread_com *c = arg;
+	//Queue *q = c->q;
 	Queue *q = c->q;
 	char *bot_vector = c->bot_move;
 	int n = 0, i, direction;
@@ -82,6 +90,7 @@ void *bot_gen(void *arg)
 		}
 		
     		// warn queue
+
 		pthread_mutex_lock(&lock);
 		InsertLast(q, &bot_warn);
 		pthread_mutex_unlock(&lock);
@@ -101,7 +110,8 @@ void *prize_gen(void *arg)
 {	
 	int i; 
 	player_position_t prize[MAX_PRIZES];
-	Queue *q = arg;
+
+	//Queue *q = arg;
 
 	srand(time(NULL));
 
@@ -120,6 +130,7 @@ void *prize_gen(void *arg)
 		pthread_mutex_lock(&lock);
 		InsertLast(q, &prize[i]);
 		pthread_mutex_unlock(&lock);
+    
 		i = (i >= 9) ? 0 : i+1;
 		mvwprintw(message_win, 5,1,"%d", i);
 	}
@@ -324,7 +335,8 @@ Create a socket to be able to comunicate with clients
 Server's port and address are provided as arguments in command line
 */
 int create_socket(int port){
-	int sock_fd, serv_port, serv_addr;
+	
+  int sock_fd;
 	struct sockaddr_in address;
 	
 	sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -357,6 +369,32 @@ void clear_hp_changes(int vector[]){
 	for(i=0; i<MAX_PLAYERS; i++) vector[i]=0;
 }
 
+
+void *update_players(void *arg)
+{
+	int i, n;
+	server_message message;
+
+	for(i=0; i<MAX_PLAYERS; i++)
+	{
+		if(socket_array[i]!=0)
+		{
+			pthread_mutex_lock(&lock);	
+			message = sm;
+			pthread_mutex_unlock(&lock);
+			message.type = 4;
+			n = write(fd, &message, sizeof(server_message));
+			if(n==-1)
+			{
+				error_msg();	
+			}
+		}	
+	}
+	// todo: add a count to check if it was sent to all players
+	return NULL;
+}
+
+
 /*
  * This function will be used for the health and position computations
  * it will receive a queue and a vector with changes of positions for the bots
@@ -364,10 +402,11 @@ void clear_hp_changes(int vector[]){
 void *computation(void *arg)
 {
 	thread_com *c = arg;
-	Queue *q = c->q;
+	//Queue *q = c->q;
 	char *bot_vector = c->bot_move;
 	player_position_t *current_player;
-	int j, k, temp_x, temp_y, rammed_player;
+	int i, j, k, temp_x, temp_y, rammed_player;
+
 
 	current_player = NULL;
 	
@@ -410,115 +449,15 @@ void *computation(void *arg)
 						}
 						draw_player(my_win, &sm.bots[k], true);
 				}
-			}
-		}		
-	wrefresh(message_win);
-	}
-
-}
-
-void error_msg()
-{
-	char message[36];
-	memset(message, '\0', 36);
-	strcat(message, strerror(errno));
-	mvwprintw(message_win, 4, 1, "%s\n", message);
-	return;
-}
-
-void *update_players(void *arg)
-{
-	int i, n;
-	server_message message;
-
-	for(i=0; i<MAX_PLAYERS; i++)
-	{
-		if(socket_array[i]!=0)
-		{
-			pthread_mutex_lock(&lock);	
-			message = sm;
-			pthread_mutex_unlock(&lock);
-			message.type = 4;
-			n = write(fd, &message, sizeof(server_message));
-			if(n==-1)
-			{
-				error_msg();	
-			}
-		}	
-	}
-	// todo: add a count to check if it was sent to all players
-	return NULL;
-}
-
-
-void *cli_reciever(void *arg){
-	client_message cm;
-	int n, i, temp_x, temp_y, rammed_player;
-	int cli_fd = (int) arg;
-
-	mvwprintw(message_win, 2, 1, "still %d", cli_fd);
-	
-	while(1){
-	n = recv(cli_fd, &cm, sizeof(client_message), 0);
-	// add read verification
-		
-	mvwprintw(message_win, 3, 1, "read stuff");
-	
-	switch (cm.type){
-		case 0: //Message about player's connection
-			if(cm.arg == 'c'){
-				if (player_count == MAX_PLAYERS){ // field is full		
-					sm.type = 2;	
-					// n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
-				}	
-				else if(search_player(sm.players, cm.c)==-1){ // accepted player	
-					i=0;
-					while(sm.players[i].c!='\0' && i<MAX_PLAYERS) i++;
-					new_player (0, i, cm.c);
-					//mvwprintw(message_win, 2,1,"player %c joined", cm.c);
-					sm.type = 0;	
-					//mvwprintw(message_win, 3,1,"%s", client_addr.sun_path);
-					
-					//n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
-					//if(n==-1)perror("sendto error");
-					
-					draw_player(my_win, &sm.players[i], true);
-					player_count++;
-				}
-				else	// repeated character
-				{
-					sm.type = 2;
-					//n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
-					//if(n==-1)perror("sendto error");
-				}	
-			}
-			else if (cm.arg == 'd')	// disconect player
-			{
-				i = search_player(sm.players, cm.c);
-				if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
-				else 
-				{
-					draw_player(my_win, &sm.players[i], false);
-					mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
-					sm.players[i].c = '\0';
-					player_count--;
-					return 0;
-				}
-			}
-			else mvwprintw(message_win, 2,1,"Message poorly formatted.");
-		break;
-		
-		//!!!!Move this to computation
-		/*
-		case 1: //Message about player's movement
-				i = search_player(sm.players, cm.c);
-				if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
+			}else if(current_player->c > 'a' && current_player->c < 'z'){ // move player
+				i = search_player(sm.players, current_player->c);
+				if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", current_player->c);
 				else
 				{//move player accordingly and check for collisions
 					temp_x=sm.players[i].x;
 					temp_y=sm.players[i].y;
 					draw_player(my_win, &sm.players[i], false);
-					moove_player (&sm.players[i], cm.arg);
+					moove_player (&sm.players[i], 'd'); //!!!!temporarily moving just down
 					rammed_player = check_collision(0, i);
 
 					if(rammed_player>-1 && rammed_player<MAX_PLAYERS){//collided with player
@@ -545,20 +484,109 @@ void *cli_reciever(void *arg){
 						draw_player(my_win, &sm.players[i], false);
 						mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
 						sm.players[i].c = '\0';
-						player_count--;
-						sm.type = 3;
+						//player_count--;
+						//sm.type = 3;
 						//sm.player_pos=-1;
 					}else{//Send the player its and the field's updated status
 
-					mvwprintw(message_win, 2,1,"Player %c moved %c", cm.c, cm.arg);
-					sm.type = 3;
+					//mvwprintw(message_win, 2,1,"Player %c moved %c", current_player->c, cm.arg);
+					//sm.type = 3;
 					//sm.player_pos=i;
 					}
 
 					//n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 				//if(n==-1)perror("sendto error");
+			}
+		pthread_create(&id[14], NULL, update_players, NULL);
+			}
+		}		
+	wrefresh(message_win);
+	}
+
+}
+
+
+void *cli_reciever(void *arg){
+	client_message cm;
+	int n, i, temp_x, temp_y, rammed_player;
+	int cli_fd = (int) arg;
+
+	mvwprintw(message_win, 2, 1, "still %d", cli_fd);
+	
+	while(1){
+	n = recv(cli_fd, &cm, sizeof(client_message), 0);
+	// add read verification
+		
+	mvwprintw(message_win, 3, 1, "read stuff");
+	
+	switch (cm.type){
+		case 0: //Message about player's connection
+			if(cm.arg == 'c'){
+				if (player_count == MAX_PLAYERS){ // field is full		
+					sm.type = 2;	
+					// n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
+				}	
+				else if(search_player(sm.players, cm.c)==-1){ // accepted player	
+        
+					new_player (0, *player_pos, cm.c);
+					// i=0;
+					// while(sm.players[i].c!='\0' && i<MAX_PLAYERS) i++;
+					// new_player (0, i, cm.c);
+					//mvwprintw(message_win, 2,1,"player %c joined", cm.c);
+					sm.type = 0;	
+					//mvwprintw(message_win, 3,1,"%s", client_addr.sun_path);
+					
+					n = write(socket_array[*player_pos], &sm, sizeof(server_message));
+					if(n==-1)perror("sendto error");
+					
+					draw_player(my_win, &sm.players[*player_pos], true);					
+					// draw_player(my_win, &sm.players[i], true);
+
+					player_count++;
+				}
+				else	// repeated character
+				{
+					sm.type = 2;
+					n = write(socket_array[*player_pos], &sm, sizeof(server_message));
+					if(n==-1)perror("sendto error");
+
+				}	
+			}
+			else if (cm.arg == 'd')	// disconect player
+			{
+				if(sm.players[*player_pos].c=='\0')  mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
+				else 
+				{
+					draw_player(my_win, &sm.players[*player_pos], false);
+					mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
+					sm.players[*player_pos].c = '\0';
+					//closes socket
+					close(socket_array[*player_pos]);
+					socket_array[*player_pos]=0;
+          
+				/*
+        i = search_player(sm.players, cm.c);
+				 if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
+				else 
+				{
+					draw_player(my_win, &sm.players[i], false);
+					mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
+					sm.players[i].c = '\0';
+          */
+					player_count--;
+					return 0;
+				}
+			}
+			else mvwprintw(message_win, 2,1,"Message poorly formatted.");
 		break;
-	*/
+		case 1: //Message about player's movement
+			//cm.arg	
+			InsertLast(q, &sm.players[*player_pos]);
+		break;
+		default:
+			return 0;
+			break;
+	  }
 	}
 	//InsertLast(q, &cm);
 	}
@@ -567,13 +595,27 @@ void *cli_reciever(void *arg){
 
 
 void *tcp_accepter(void *arg){
-	// int *socket = arg;
-	int new_client;
+
+	int i, new_client;
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size = sizeof(struct sockaddr_in);
 	while(1){
 		if (player_count < MAX_PLAYERS){
 			new_client = accept(fd, (struct sockaddr*)&client_addr, &client_addr_size);
+			for ( i=0; i<MAX_PLAYERS; i++){
+				if (socket_array[i]==0){
+					socket_array[i]=new_client;
+					mvwprintw(message_win, 6, 1, "accepted on descriptor %d", new_client);
+
+					pthread_create (&id[i], NULL, cli_reciever, &i);
+					break;
+				}
+			}
+			//player_count++;
+		}
+		//else
+		//	break;
+/*
 			for (int i=0; i<MAX_PLAYERS; i++){
 				if (socket_array[i]==0){
 					socket_array[i]=new_client;
@@ -586,11 +628,10 @@ void *tcp_accepter(void *arg){
 		}
 		else
 			break;
+*/
 	}
 	return 0;
 }
-
-
 
 
 int main(int argc, char* argv[])
@@ -600,8 +641,7 @@ int main(int argc, char* argv[])
 	//socklen_t client_addr_size = sizeof(struct sockaddr_in);
 	char bot_message[MAX_BOTS];
 	thread_com messager; //will be used for thread communication
-	Queue *q;
-
+	//Queue *q;
 	srand(time(NULL));
 	
 	if(argc!=2)
@@ -609,6 +649,7 @@ int main(int argc, char* argv[])
 		printf("./server/server <PORT NUMBER>\n");
 		exit(0);
 	}
+
 
 	q = QueueNew();	
 	messager.q = q;

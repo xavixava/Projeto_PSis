@@ -70,7 +70,8 @@ Create a socket to be able to comunicate with clients
 */
 
 int create_socket(char *ip, int port){
-	int sock_fd, serv_port, serv_addr;
+
+	int sock_fd;
 	struct sockaddr_in address;
 	
 	sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -89,6 +90,7 @@ int create_socket(char *ip, int port){
     // Check for connection error
     if (conn_status < 0) {
         perror("Error\n");
+		    exit(0);
     }
 
 	return sock_fd;
@@ -163,6 +165,15 @@ int main(int argc, char* argv[]){
 
 	fd = create_socket(argv[1], atoi(argv[2]));
 
+	if(argc != 3)
+	{
+		printf("./src/chase-client.c <ip> <port>\n");
+		exit(0);
+	}
+	
+	// todo: still lacks ip and port verification
+
+	fd = create_socket(argv[1], atoi(argv[2]));
 
 	initscr();		    	/* Start curses mode 		*/
 	cbreak();				/* Line buffering disabled	*/
@@ -195,7 +206,7 @@ int main(int argc, char* argv[]){
         		
 			mvwprintw(message_win, 2,1,"Selected %c", cm.c);
    
-			n = send(fd, &cm, sizeof(client_message), 0);
+			n = write(fd, &cm, sizeof(client_message)); 	
 			// todo: add verification	
 			if(n == -1)	// no server is running 
 			{
@@ -259,7 +270,8 @@ int main(int argc, char* argv[]){
 			break;
 
 		}
-		n = send(fd, &cm, sizeof(client_message), 0);	
+
+		n = write(fd, &cm, sizeof(client_message));	
 		if(n == -1)perror("Send error(please press ctrl+C)");
         	
 		// clear screen so we can print new screen	
