@@ -9,6 +9,8 @@
 #include <pthread.h>
 #include <arpa/inet.h>
 #include <string.h>
+#include <errno.h>
+
 
 #include "queue.h"
 #include "chase.h"
@@ -17,11 +19,19 @@ WINDOW * message_win;
 WINDOW *my_win;
 
 Queue *q;
+
+extern int errno;
+WINDOW * message_win;
+WINDOW *my_win;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
+
 short bot_nr;
 int player_count=0;
 int fd;
 server_message sm;
-pthread_t id[15];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: computation; 13: tcp listener; 14: update players
+pthread_t id[14];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: update players; 13: tcp listener
+
 int socket_array[MAX_PLAYERS];
 
 
@@ -43,6 +53,7 @@ void *bot_gen(void *arg)
 {	
 	thread_com *c = arg;
 	//Queue *q = c->q;
+	Queue *q = c->q;
 	char *bot_vector = c->bot_move;
 	int n = 0, i, direction;
 	player_position_t bot_warn;
@@ -79,7 +90,10 @@ void *bot_gen(void *arg)
 		}
 		
     		// warn queue
+
+		pthread_mutex_lock(&lock);
 		InsertLast(q, &bot_warn);
+		pthread_mutex_unlock(&lock);
 	}
 
  
@@ -96,6 +110,7 @@ void *prize_gen(void *arg)
 {	
 	int i; 
 	player_position_t prize[MAX_PRIZES];
+
 	//Queue *q = arg;
 
 	srand(time(NULL));
@@ -112,7 +127,10 @@ void *prize_gen(void *arg)
         	sleep(5);	
 		prize[i].c = '0' + generate_prize();	
 		// put prize in the queue
+		pthread_mutex_lock(&lock);
 		InsertLast(q, &prize[i]);
+		pthread_mutex_unlock(&lock);
+    
 		i = (i >= 9) ? 0 : i+1;
 		mvwprintw(message_win, 5,1,"%d", i);
 	}
@@ -317,7 +335,8 @@ Create a socket to be able to comunicate with clients
 Server's port and address are provided as arguments in command line
 */
 int create_socket(int port){
-	int sock_fd;
+	
+  int sock_fd;
 	struct sockaddr_in address;
 	
 	sock_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -350,6 +369,7 @@ void clear_hp_changes(int vector[]){
 	for(i=0; i<MAX_PLAYERS; i++) vector[i]=0;
 }
 
+
 void *update_players(void *arg)
 {
 	int i, n;
@@ -358,16 +378,22 @@ void *update_players(void *arg)
 	for(i=0; i<MAX_PLAYERS; i++)
 	{
 		if(socket_array[i]!=0)
-		{	
+		{
+			pthread_mutex_lock(&lock);	
 			message = sm;
+			pthread_mutex_unlock(&lock);
 			message.type = 4;
-			n = write(socket_array[i], &message, sizeof(server_message));
-			// todo: add write verification
+			n = write(fd, &message, sizeof(server_message));
+			if(n==-1)
+			{
+				error_msg();	
+			}
 		}	
 	}
-	// add a count to check if it was sent to all players
+	// todo: add a count to check if it was sent to all players
 	return NULL;
 }
+
 
 /*
  * This function will be used for the health and position computations
@@ -381,11 +407,15 @@ void *computation(void *arg)
 	player_position_t *current_player;
 	int i, j, k, temp_x, temp_y, rammed_player;
 
+
 	current_player = NULL;
 	
 	while(1)
 	{
+		pthread_mutex_unlock(&lock);
+		// todo: if empty add wait here
 		current_player = GetFirst(q);  // gets most prioritary element from FIFO
+		pthread_mutex_unlock(&lock);
 
 		if(current_player != NULL)
 		{
@@ -468,6 +498,7 @@ void *computation(void *arg)
 				//if(n==-1)perror("sendto error");
 			}
 		pthread_create(&id[14], NULL, update_players, NULL);
+			}
 		}		
 	wrefresh(message_win);
 	}
@@ -477,13 +508,13 @@ void *computation(void *arg)
 
 void *cli_reciever(void *arg){
 	client_message cm;
-	int n;
-	int *player_pos = arg; //makes sure that a new player is in the same position in socket_array[i], thread id[i] and sm.players[i] 
-	
-	mvwprintw(message_win, 2, 1, "still %d", socket_array[*player_pos]);
+	int n, i, temp_x, temp_y, rammed_player;
+	int cli_fd = (int) arg;
+
+	mvwprintw(message_win, 2, 1, "still %d", cli_fd);
 	
 	while(1){
-	n = read(socket_array[*player_pos], &cm, sizeof(client_message));
+	n = recv(cli_fd, &cm, sizeof(client_message), 0);
 	// add read verification
 		
 	mvwprintw(message_win, 3, 1, "read stuff");
@@ -496,7 +527,11 @@ void *cli_reciever(void *arg){
 					// n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);	
 				}	
 				else if(search_player(sm.players, cm.c)==-1){ // accepted player	
+        
 					new_player (0, *player_pos, cm.c);
+					// i=0;
+					// while(sm.players[i].c!='\0' && i<MAX_PLAYERS) i++;
+					// new_player (0, i, cm.c);
 					//mvwprintw(message_win, 2,1,"player %c joined", cm.c);
 					sm.type = 0;	
 					//mvwprintw(message_win, 3,1,"%s", client_addr.sun_path);
@@ -504,7 +539,9 @@ void *cli_reciever(void *arg){
 					n = write(socket_array[*player_pos], &sm, sizeof(server_message));
 					if(n==-1)perror("sendto error");
 					
-					draw_player(my_win, &sm.players[*player_pos], true);
+					draw_player(my_win, &sm.players[*player_pos], true);					
+					// draw_player(my_win, &sm.players[i], true);
+
 					player_count++;
 				}
 				else	// repeated character
@@ -512,6 +549,7 @@ void *cli_reciever(void *arg){
 					sm.type = 2;
 					n = write(socket_array[*player_pos], &sm, sizeof(server_message));
 					if(n==-1)perror("sendto error");
+
 				}	
 			}
 			else if (cm.arg == 'd')	// disconect player
@@ -525,6 +563,16 @@ void *cli_reciever(void *arg){
 					//closes socket
 					close(socket_array[*player_pos]);
 					socket_array[*player_pos]=0;
+          
+				/*
+        i = search_player(sm.players, cm.c);
+				 if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
+				else 
+				{
+					draw_player(my_win, &sm.players[i], false);
+					mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
+					sm.players[i].c = '\0';
+          */
 					player_count--;
 					return 0;
 				}
@@ -538,13 +586,16 @@ void *cli_reciever(void *arg){
 		default:
 			return 0;
 			break;
+	  }
 	}
+	//InsertLast(q, &cm);
 	}
 }
 
 
 
 void *tcp_accepter(void *arg){
+
 	int i, new_client;
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size = sizeof(struct sockaddr_in);
@@ -564,6 +615,20 @@ void *tcp_accepter(void *arg){
 		}
 		//else
 		//	break;
+/*
+			for (int i=0; i<MAX_PLAYERS; i++){
+				if (socket_array[i]==0){
+					socket_array[i]=new_client;
+					mvwprintw(message_win, 1, 1, "accepted on descriptor %d", new_client);
+
+					pthread_create (&id[i], NULL, cli_reciever, socket_array[i]);
+				}
+			}
+			player_count++;
+		}
+		else
+			break;
+*/
 	}
 	return 0;
 }
@@ -571,14 +636,12 @@ void *tcp_accepter(void *arg){
 
 int main(int argc, char* argv[])
 {
-	q = QueueNew();
 	int i; 
 	//struct sockaddr_storage serverStorage;
 	//socklen_t client_addr_size = sizeof(struct sockaddr_in);
 	char bot_message[MAX_BOTS];
 	thread_com messager; //will be used for thread communication
 	//Queue *q;
-
 	srand(time(NULL));
 	
 	if(argc!=2)
@@ -587,7 +650,8 @@ int main(int argc, char* argv[])
 		exit(0);
 	}
 
-	//q = QueueNew();	
+
+	q = QueueNew();	
 	messager.q = q;
 	messager.bot_move = bot_message;
 	bot_nr = 10;
