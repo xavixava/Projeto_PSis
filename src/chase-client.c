@@ -106,6 +106,12 @@ void *recv_update(void *arg)
 		n = recv(fd, sm, sizeof(server_message), 0);
 		// todo: verify read
 		//if(n == -1)perror("Recv error(please press ctrl+C)");
+		if(n==0)
+		{
+			mvwprintw(message_win, 1, 1, "Disconnected from server.");
+			sleep(2);
+			exit(0);
+		}
 		if(sm->type==3){
 
 			//todo: now health_0 doesn't do that
@@ -119,8 +125,10 @@ void *recv_update(void *arg)
 		}
 	
 		count=0;	// update screen and players health
+		werase(my_win);
 		werase(message_win);
 		box(message_win, 0 , 0);	
+		box(my_win, 0 , 0);	
 		for(int i=0; i<MAX_PLAYERS; i++){ 
 			if(sm->players[i].c!='\0' && sm->players[i].health_bar>0){
 				draw_player(my_win, &sm->players[i], true);
@@ -138,6 +146,7 @@ void *recv_update(void *arg)
 			draw_player(my_win, &sm->bots[i], true);
 			}
 		}
+		// copy = sm;
 	}
 	return NULL;
 }
@@ -148,7 +157,7 @@ player_position_t p1;
 int main(int argc, char* argv[]){
 
 	int n;
-	server_message sm;
+	server_message sm, copy;
 	client_message cm;
 	//struct sockaddr_in server_addr;
 	//socklen_t server_addr_size = sizeof(struct sockaddr_in);
@@ -274,6 +283,7 @@ int main(int argc, char* argv[]){
 		n = write(fd, &cm, sizeof(client_message));	
 		if(n == -1)perror("Send error(please press ctrl+C)");
         	
+		/*
 		// clear screen so we can print new screen	
 
 		for(int i=0; i<MAX_PLAYERS; i++){ 
@@ -290,13 +300,11 @@ int main(int argc, char* argv[]){
 			if(sm.bots[i].c!='\0'){
 				draw_player(my_win, &sm.bots[i], false);
 			}
-		}
+		}*/
 		
         	wrefresh(message_win);	
 	}
 	
-	/*
-	 * unnecessary
 	cm.type = 0; 
 	cm.arg = 'd';
 	n = send(fd, &cm, sizeof(client_message), 0);	
@@ -308,6 +316,7 @@ int main(int argc, char* argv[]){
 		wrefresh(message_win);	
 		sleep(2);
 		return 0;
-	}	*/
+	}
+	close(fd);
 	return 0;
 }

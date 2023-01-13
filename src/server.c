@@ -369,9 +369,9 @@ void clear_hp_changes(int vector[]){
 	for(i=0; i<MAX_PLAYERS; i++) vector[i]=0;
 }
 
-void error_msg()
+void error_msg(char c)
 {
-	mvwprintw(message_win, 7, 1, "%s", strerror(errno));
+	mvwprintw(message_win, 7, 1, "%c: %s", strerror(errno));
 	return;
 }
 
@@ -379,20 +379,18 @@ void error_msg()
 void *update_players(void *arg)
 {
 	int i, n;
-	server_message message;
+	// server_message message;
 
 	for(i=0; i<MAX_PLAYERS; i++)
 	{
+		pthread_mutex_lock(&lock);	
 		if(socket_array[i]!=0)
 		{
-			mvwprintw(message_win, 1, 1, "here");
-			pthread_mutex_lock(&lock);	
-			message = sm;
-			pthread_mutex_unlock(&lock);
-			message.type = 4;
-			n = write(socket_array[i], &message, sizeof(server_message));
-			if(n==-1) error_msg();	
+			sm.type = 4;
+			n = write(socket_array[i], &sm, sizeof(server_message));
+			if(n==-1) error_msg('u');	
 		}	
+		pthread_mutex_unlock(&lock);
 	}
 	// todo: add a count to check if it was sent to all players
 	return NULL;
@@ -416,13 +414,15 @@ void *computation(void *arg)
 	
 	while(1)
 	{
-		pthread_mutex_unlock(&lock);
+		pthread_mutex_lock(&lock);
 		// todo: if empty add wait here
 		current_player = GetFirst(q);  // gets most prioritary element from FIFO
 		pthread_mutex_unlock(&lock);
+		
 
 		if(current_player != NULL)
 		{
+			mvwprintw(message_win, 6, 1, "%c %d %d %d", current_player->c, current_player->x, current_player->y, current_player->health_bar);
 			if('1' <= current_player->c && current_player->c <= '5') // new prize on field
 			{
 				j=0;
@@ -458,15 +458,17 @@ void *computation(void *arg)
 			}
 			else if(current_player->c > 'a' && current_player->c < 'z')
 			{ // move player
-				i = search_player(sm.players, current_player->c);
-				if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", current_player->c);
+				i = current_player-> health_bar;  // since we don't need to save hp in queue, then health_bar saves index
+				// i = search_player(sm.players, current_player->c);
+				if(i==-1) mvwprintw(message_win, 2,1,"Char %c not found.", current_player->c); // needed better check
 				else
 				{
 					//move player accordingly and check for collisions
 					temp_x=sm.players[i].x;
 					temp_y=sm.players[i].y;
 					draw_player(my_win, &sm.players[i], false);
-					moove_player (&sm.players[i], 'd'); //!!!!temporarily moving just down
+					sm.players[i].x = current_player->x;
+					sm.players[i].y = current_player->y;
 					rammed_player = check_collision(0, i);
 
 					if(rammed_player>-1 && rammed_player<MAX_PLAYERS){//collided with player
@@ -493,26 +495,29 @@ void *computation(void *arg)
 				}
 					draw_player(my_win, &sm.players[i], true);
 				
-				if (sm.players[i].health_bar<=0){//Reached 0HP disconnected
-						draw_player(my_win, &sm.players[i], false);
-						mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
-						sm.players[i].c = '\0';
-						//player_count--;
-						//sm.type = 3;
-						//sm.player_pos=-1;
+				if (sm.players[i].health_bar<=0){// todo: Reached 0HP disconnected
+					draw_player(my_win, &sm.players[i], false);
+					mvwprintw(message_win, 2,1,"Player %c reached 0 HP", sm.players[i].c);
+					sm.players[i].c = '\0';
+					//player_count--;
+					//sm.type = 3;
+					//sm.player_pos=-1;
 				}
-					else
-					{//Send the player its and the field's updated status
+				else
+				{
+					//Send the player its and the field's updated status
+					pthread_create(&id[14], NULL, update_players, NULL);
 
 					//mvwprintw(message_win, 2,1,"Player %c moved %c", current_player->c, cm.arg);
 					//sm.type = 3;
 					//sm.player_pos=i;
-					}
+				}
 
-					//n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
+				//n = sendto(fd, &sm, sizeof(server_message), 0, (const struct sockaddr *) &client_addr, client_addr_size);
 				//if(n==-1)perror("sendto error");
+				free(current_player);
+				current_player = NULL;
 			}
-		pthread_create(&id[14], NULL, update_players, NULL);
 		}
 				
 	wrefresh(message_win);
@@ -520,6 +525,11 @@ void *computation(void *arg)
 
 }
 
+player_position_t *alloc()
+{
+	
+	return (player_position_t *) (malloc(sizeof(player_position_t)));
+}
 
 void *cli_reciever(void *arg)
 {
@@ -527,43 +537,40 @@ void *cli_reciever(void *arg)
 	// int n, i, temp_x, temp_y, rammed_player;
 	int n;
 	int player_pos = (int) arg;
-
-	// mvwprintw(message_win, 3, 1, "%d", socket_array[player_pos]);	
+	player_position_t *item;
 
 	while(1)
 	{
 		n = recv(socket_array[player_pos], &cm, sizeof(client_message), 0);
+		if(n==0)
+		{
+			socket_array[player_pos]=0;
+			mvwprintw(message_win, 8, 1, "id %d disconnected", player_pos);
+			pthread_exit(NULL);
+		}
 		// add read verification
 		
-		mvwprintw(message_win, 2, 1, "%i %c %c", cm.type, cm.arg, cm.c);
-		
-	
-		switch (cm.type){
+		mvwprintw(message_win, 1, 1, "%d %c %c", cm.type, cm.arg, cm.c);
+			switch (cm.type){
 			case 0: //Message about player's connection
 				
-				mvwprintw(message_win, 1, 1, "%i", cm.type);
 				if(cm.arg == 'c')
 				{
 					if (player_count >= MAX_PLAYERS){ // field is full		
 						sm.type = 2;	
-						mvwprintw(message_win, 1, 3, "%c", cm.arg);
 						n = send(socket_array[player_pos], &sm, sizeof(server_message), 0);
 						// todo: add verification	
 					}	
-					else if(search_player(sm.players, cm.c)==-1){ // accepted player	
+					else if(sm.players[player_pos].c == '\0'){ // accepted player	
         
-						new_player (0, player_pos, cm.c); //dunno player_pos, ask for help later
-						// i=0;
-						// while(sm.players[i].c!='\0' && i<MAX_PLAYERS) i++;
-						// new_player (0, i, cm.c);
-						// sm.type = 0;	
-						//mvwprintw(message_win, 3,1,"%s", client_addr.sun_path);
+						new_player (0, player_pos, cm.c); 
+						sm.type = 0;	
 					
 						n = write(socket_array[player_pos], &sm, sizeof(server_message));
 						if(n==-1)perror("sendto error");
-					
+						// todo: add proper n verification
+
 						draw_player(my_win, &sm.players[player_pos], true);					
-						// draw_player(my_win, &sm.players[i], true);
 
 						player_count++;
 						}
@@ -572,7 +579,7 @@ void *cli_reciever(void *arg)
 						sm.type = 2;
 						n = write(socket_array[player_pos], &sm, sizeof(server_message));
 						if(n==-1)perror("sendto error");
-
+						// todo: add proper n verification
 					}	
 				}
 				else if (cm.arg == 'd')	// disconect player
@@ -587,31 +594,32 @@ void *cli_reciever(void *arg)
 						close(socket_array[player_pos]);
 						socket_array[player_pos]=0;
           
-						/*
-        				i = search_player(sm.players, cm.c);
-					if(i==-1)  mvwprintw(message_win, 2,1,"Char %c not found.", cm.c);
-					else 
-					{
-						draw_player(my_win, &sm.players[i], false);
-						mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
-						sm.players[i].c = '\0';
-          				*/
-					player_count--;
-					return 0;
+						player_count--;
+						pthread_exit(NULL);
 					}
 				}
-				else mvwprintw(message_win, 2,1,"Message poorly formatted.");
+				else mvwprintw(message_win, 3,1,"Message poorly formatted. %d %c %c", cm.type, cm.arg, cm.c);
 			break;
 			case 1: //Message about player's movement
-				//cm.arg	
-				InsertLast(q, &sm.players[player_pos]);
+				if(cm.c == sm.players[player_pos].c)
+				{
+					item = alloc();
+					item->c = cm.c;
+					item->x = sm.players[player_pos].x;
+					item->y = sm.players[player_pos].y;
+					item->health_bar = player_pos;
+					moove_player(item, cm.arg);
+
+					pthread_mutex_lock(&lock);
+					InsertLast(q, item);
+					pthread_mutex_unlock(&lock);
+				}
 			break;
 			default:
 				return 0;
 				break;
 	 	}
 	}
-	//InsertLast(q, &cm);
 }
 
 
@@ -674,7 +682,7 @@ int main(int argc, char* argv[])
 	act.sa_handler=SIG_IGN;
 	if(sigaction(SIGPIPE,&act,NULL)==-1)
 	{
-		error_msg();
+		error_msg('m');
 		exit(1);
 	}
 	

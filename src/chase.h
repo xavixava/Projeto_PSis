@@ -8,7 +8,7 @@
 typedef struct player_position_t{
     int x, y;
     char c;
-    int health_bar;
+    int health_bar;  // in queue will save index
 } player_position_t;
 
 // if server sends disconecting then it means it cannot accept more clients
