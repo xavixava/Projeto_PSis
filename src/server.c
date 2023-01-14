@@ -23,9 +23,11 @@ pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_t id[15];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: update players; 13: tcp listener
 
 short bot_nr;
+
 extern int errno;
 int player_count;
 int fd, n;
+
 int socket_array[MAX_PLAYERS];
 
 server_message sm;
@@ -406,11 +408,14 @@ void *computation(void *arg)
 		// todo: if empty add wait here
 		current_player = GetFirst(q);  // gets most prioritary element from FIFO
 		pthread_mutex_unlock(&lock);
+		
 
 		if(current_player != NULL)
 		{
+
 			//content of message from FIFO being processed
 			mvwprintw(message_win, 1, 1, "%c %d %d %d", current_player->c, current_player->x, current_player->y, current_player->health_bar);
+
 			if('1' <= current_player->c && current_player->c <= '5') // new prize on field
 			{
 				j=0;
@@ -473,6 +478,7 @@ void *computation(void *arg)
 					}
 					else if(rammed_player==-1) 
 					{	// collided with bot
+
 						sm.players[i].x=temp_x;
 						sm.players[i].y=temp_y;
 					}
@@ -536,10 +542,12 @@ void *cli_reciever(void *arg)
 				{
 					if (player_count >= MAX_PLAYERS){ // field is full		
 						sm.type = 2;	
+
 						n = write(socket_array[player_pos], &sm, sizeof(server_message));
 						// todo: add verification	
 					}	
 					else {//if(sm.players[player_pos].c == '\0'){ // accepted player (Is the if needed?)
+
 						new_player (0, player_pos, cm.c); 
 						sm.type = 0;	
 					
@@ -595,6 +603,7 @@ void *cli_reciever(void *arg)
 					pthread_mutex_unlock(&lock);
 				}
 			break;
+
 			default:
 				return 0;
 				break;
@@ -634,6 +643,7 @@ int main(int argc, char* argv[])
 	char bot_message[MAX_BOTS];
 	thread_com messager; //will be used for thread communication
 	struct sigaction act;
+  
 	srand(time(NULL));
 	
 	memset(&act,0,sizeof act);

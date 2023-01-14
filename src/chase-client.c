@@ -146,6 +146,7 @@ void *recv_update(void *arg)
 			draw_player(my_win, &sm->bots[i], true);
 			}
 		}
+		// copy = sm;
 	}
 	return NULL;
 }
@@ -156,7 +157,7 @@ player_position_t p1;
 int main(int argc, char* argv[]){
 
 	int n;
-	server_message sm;
+	server_message sm, copy;
 	client_message cm;
 	//struct sockaddr_in server_addr;
 	//socklen_t server_addr_size = sizeof(struct sockaddr_in);
