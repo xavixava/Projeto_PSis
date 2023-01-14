@@ -106,6 +106,12 @@ void *recv_update(void *arg)
 		n = recv(fd, sm, sizeof(server_message), 0);
 		// todo: verify read
 		//if(n == -1)perror("Recv error(please press ctrl+C)");
+		if(n==0)
+		{
+			mvwprintw(message_win, 1, 1, "Disconnected from server.");
+			sleep(2);
+			exit(0);
+		}
 		if(sm->type==3){
 
 			//todo: now health_0 doesn't do that
@@ -119,8 +125,10 @@ void *recv_update(void *arg)
 		}
 	
 		count=0;	// update screen and players health
+		werase(my_win);
 		werase(message_win);
 		box(message_win, 0 , 0);	
+		box(my_win, 0 , 0);	
 		for(int i=0; i<MAX_PLAYERS; i++){ 
 			if(sm->players[i].c!='\0' && sm->players[i].health_bar>0){
 				draw_player(my_win, &sm->players[i], true);
@@ -204,7 +212,7 @@ int main(int argc, char* argv[]){
 			cm.arg = 'c';
 			cm.c = key;
         		
-			mvwprintw(message_win, 2,1,"Selected %c", cm.c);
+			mvwprintw(message_win, 3,1,"Selected %c", cm.c);
    
 			n = write(fd, &cm, sizeof(client_message)); 	
 			// todo: add verification	
@@ -255,25 +263,30 @@ int main(int argc, char* argv[]){
 		{
 			case KEY_LEFT:
             			cm.arg = 'l';
+						n = write(fd, &cm, sizeof(client_message));	
 			break;
 			
 			case KEY_RIGHT:
             			cm.arg = 'r';
+						n = write(fd, &cm, sizeof(client_message));	
 			break;
 			
 			case KEY_UP:
             			cm.arg = 'u';
+						n = write(fd, &cm, sizeof(client_message));	
 			break;
 			
 			case KEY_DOWN:
             			cm.arg = 'd';
+						n = write(fd, &cm, sizeof(client_message));	
 			break;
 
 		}
 
-		n = write(fd, &cm, sizeof(client_message));	
+		//n = write(fd, &cm, sizeof(client_message));	
 		if(n == -1)perror("Send error(please press ctrl+C)");
         	
+		/*
 		// clear screen so we can print new screen	
 
 		for(int i=0; i<MAX_PLAYERS; i++){ 
@@ -290,16 +303,17 @@ int main(int argc, char* argv[]){
 			if(sm.bots[i].c!='\0'){
 				draw_player(my_win, &sm.bots[i], false);
 			}
-		}
+		}*/
 		
         	wrefresh(message_win);	
 	}
 	
-	/*
-	 * unnecessary
 	cm.type = 0; 
 	cm.arg = 'd';
-	n = send(fd, &cm, sizeof(client_message), 0);	
+	//mvwprintw(message_win, 3,1,"%d %c %c", cm.type, cm.arg, cm.c);
+	//wrefresh(message_win);	
+	n = send(fd, &cm, sizeof(client_message), 0);
+	sleep(2);	
 	if(n == -1)//perror("Send error(please press ctrl+C)");
 	{
 		werase(message_win);
@@ -308,6 +322,7 @@ int main(int argc, char* argv[]){
 		wrefresh(message_win);	
 		sleep(2);
 		return 0;
-	}	*/
+	}
+	close(fd);
 	return 0;
 }
