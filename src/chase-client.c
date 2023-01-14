@@ -264,23 +264,27 @@ int main(int argc, char* argv[]){
 		{
 			case KEY_LEFT:
             			cm.arg = 'l';
+						n = write(fd, &cm, sizeof(client_message));	
 			break;
 			
 			case KEY_RIGHT:
             			cm.arg = 'r';
+						n = write(fd, &cm, sizeof(client_message));	
 			break;
 			
 			case KEY_UP:
             			cm.arg = 'u';
+						n = write(fd, &cm, sizeof(client_message));	
 			break;
 			
 			case KEY_DOWN:
             			cm.arg = 'd';
+						n = write(fd, &cm, sizeof(client_message));	
 			break;
 
 		}
 
-		n = write(fd, &cm, sizeof(client_message));	
+		//n = write(fd, &cm, sizeof(client_message));	
 		if(n == -1)perror("Send error(please press ctrl+C)");
         	
 		/*
@@ -307,7 +311,10 @@ int main(int argc, char* argv[]){
 	
 	cm.type = 0; 
 	cm.arg = 'd';
-	n = send(fd, &cm, sizeof(client_message), 0);	
+	//mvwprintw(message_win, 3,1,"%d %c %c", cm.type, cm.arg, cm.c);
+	//wrefresh(message_win);	
+	n = send(fd, &cm, sizeof(client_message), 0);
+	sleep(2);	
 	if(n == -1)//perror("Send error(please press ctrl+C)");
 	{
 		werase(message_win);
