@@ -424,6 +424,7 @@ void *computation(void *arg)
 				{
 					new_player (2, j, current_player->c);  // checks if space is occupied
 					draw_player(my_win, &sm.prizes[j], true);
+					//draw_player(my_win, &sm.players[player_pos], true);
 					mvwprintw(message_win, 3,1,"New Prize: %d %d %c", sm.prizes[j].x, sm.prizes[j].y, current_player->c);
 				}
 			}
@@ -445,6 +446,11 @@ void *computation(void *arg)
 							sm.bots[k].y=temp_y;
 							update_health(&sm.players[rammed_player], -1);
 						}
+					}
+					else if(rammed_player==-1) //|| (rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES))
+					{ //bot hit another bot or prize
+						sm.bots[k].x=temp_x;
+						sm.bots[k].y=temp_y;
 					}
 					draw_player(my_win, &sm.bots[k], true);
 					mvwprintw(message_win, 4,1,"                       ");
@@ -496,15 +502,20 @@ void *computation(void *arg)
 					mvwprintw(message_win, 2, 1, "Player %c reached 0 HP", sm.players[i].c);
 					sm.players[i].c = '\0';
 					sm.type = 3;
+					n = write(socket_array[i], &sm, sizeof(server_message));
 					//closes socket
 					close(socket_array[i]);
 					socket_array[i]=0;
 					player_count--;
-					n = write(socket_array[i], &sm, sizeof(server_message));
-
+					pthread_cancel(id[i]);
+					//close associated thread also
 				}
 				free(current_player);
 				current_player = NULL;
+			}
+			for (k=0; k<MAX_PRIZES; k++){
+				if (sm.prizes[k].c!='\0')
+					draw_player(my_win, &sm.prizes[k], true);
 			}
 			//Send the player its and the field's updated status
 			pthread_create(&id[14], NULL, update_players, NULL);
@@ -532,9 +543,14 @@ void *cli_reciever(void *arg)
 		{
 			socket_array[player_pos]=0;
 			mvwprintw(message_win, 7, 1, "id %d disconnected", player_pos);
+			close(socket_array[player_pos]);
+			socket_array[player_pos]=0;
 			pthread_exit(NULL);
 		}
 		// add read verification
+		//mvwprintw(message_win, 8, 1, "                       ");
+		wmove(message_win, 8, 1);          // move to begining of line
+		wclrtoeol(message_win);
 		mvwprintw(message_win, 8, 1, "%d %c %c", cm.type, cm.arg, cm.c);
 		switch (cm.type){
 			case 0: //Message about player's connection
@@ -556,7 +572,7 @@ void *cli_reciever(void *arg)
 						// todo: add proper n verification
 
 						draw_player(my_win, &sm.players[player_pos], true);					
-
+						//pthread_create(&id[14], NULL, update_players, NULL);
 						player_count++;
 					}
 					//We aren't checking for repeated characters and they'll be chosen by the server anyway
@@ -576,7 +592,7 @@ void *cli_reciever(void *arg)
 					
 					else  draw_player(my_win, &sm.players[player_pos], false);
 
-					mvwprintw(message_win, 2,1,"player %c disconected", cm.c);
+					mvwprintw(message_win, 2,1,"player %c disconnected", cm.c);
 					sm.players[player_pos].c = '\0';
 					//closes socket
 					close(socket_array[player_pos]);
@@ -605,6 +621,7 @@ void *cli_reciever(void *arg)
 			break;
 
 			default:
+				mvwprintw(message_win, 5,1,"Wrong format %d, %c, %c", cm.type, cm.arg, cm.c);
 				return 0;
 				break;
 	 	}

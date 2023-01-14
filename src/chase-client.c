@@ -311,8 +311,8 @@ int main(int argc, char* argv[]){
 	
 	cm.type = 0; 
 	cm.arg = 'd';
-	//mvwprintw(message_win, 3,1,"%d %c %c", cm.type, cm.arg, cm.c);
-	//wrefresh(message_win);	
+	mvwprintw(message_win, 3,1,"%d %c %c", cm.type, cm.arg, cm.c);
+	wrefresh(message_win);	
 	n = send(fd, &cm, sizeof(client_message), 0);
 	sleep(2);	
 	if(n == -1)//perror("Send error(please press ctrl+C)");
