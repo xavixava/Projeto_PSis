@@ -110,8 +110,8 @@ char generate_player_char()
 	char player = 'a';
 	while (search_player(sm.players, player)!=-1)
 	{
-		player_num = (random()%52);
-		if(player_num < 26)
+		player_num = (random()%46);
+		if(player_num < 23)
 			player ='a' + player_num;
 		else player = 'A' + player_num;	
 	}
