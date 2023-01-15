@@ -21,7 +21,7 @@ WINDOW * message_win;
 WINDOW *my_win;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_t id[308];  // 0: prize_gen; 1: bot_gen; 2: update players; 3: tcp listener
-
+cond_t cv[MAX_PLAYERS];
 
 short bot_nr;
 
@@ -44,12 +44,6 @@ void error_msg(char c)
 {
 	mvwprintw(message_win, 7, 1, "%c: %s", strerror(errno));
 	return;
-}
-
-int search_player(player_position_t vector[], char c){
-	int i;
-	for(i=0; i<MAX_PLAYERS; i++)if(vector[i].c==c) return i;
-	return -1;
 }
 
 /*
@@ -121,6 +115,57 @@ char generate_player_char()
 	}
 	return player;
 }
+
+void *wait_ten(void *arg)
+{
+	int index;
+	index = (int) arg;
+	sleep(10);
+	
+	pthread_mutex_lock(&lock);
+	if(cv[index].n==0)
+	{
+		cv[index].n = 2;
+		// send signal
+	}	
+	pthread_mutex_unlock(&lock);		
+	pthread_exit(NULL);
+}
+
+
+void *hp_o(void *arg)
+{
+	int n;
+	int ret;
+	pthread_t waiter;
+	
+	n = (int) arg;
+	/* initialize a condition variable to its default value */
+	ret = pthread_cond_init(&cv[n].cv, NULL);
+	if(ret!=0)
+	{
+		error_msg('c');
+		pthread_exit(NULL);
+	}
+	cv[n].n = 0;
+	pthread_create(&waiter, NULL, wait_ten, n);
+	pthread_mutex_lock(&lock);
+	/* wait on condition variable */
+	while(cv[n].n == 0) ret = pthread_cond_wait(&cv[n].cv, &lock);
+	if (cv[n].n == 1) sm.players[n].health_bar = 10;	
+	else if (cv[n].n == 2)
+	{
+		mvwprintw(message_win, 3, 1, "Player elim");
+		sm.players[n].c = '\0';
+		pthread_cancel(id[n+4]);
+		close(socket_array[n]);
+		socket_array[n] = 0;
+	}	
+	pthread_mutex_unlock(&lock);		
+	pthread_cond_destroy(&cv[n].cv);	
+	pthread_exit(NULL);
+}
+
 
 void *prize_gen(void *arg)
 {	
@@ -392,7 +437,7 @@ int create_socket(int port){
  
 	int err = bind(sock_fd, (struct sockaddr *)&address, sizeof(address));
 	if(err == -1) {
-		error_msg('b');
+		perror("socket:");
 		exit(-1);
 	}
 	return sock_fd;
@@ -436,14 +481,13 @@ void *computation(void *arg)
 	char *bot_vector = arg;
 	player_position_t *current_player;
 	int i, j, k, temp_x, temp_y, rammed_player;
-  pthread_t updater;
+  	pthread_t updater, hpo;
   
 	current_player = NULL;
 	
 	while(1)
 	{
 		pthread_mutex_lock(&lock);
-    pthread_t updater;
 		// todo: if empty add wait here
 		current_player = GetFirst(q);  // gets most prioritary element from FIFO
 		pthread_mutex_unlock(&lock);
@@ -479,11 +523,19 @@ void *computation(void *arg)
 							
 					if(rammed_player>-1 && rammed_player<MAX_PLAYERS)
 					{ //bot hit player (update player's health)
-						if(sm.players[rammed_player].health_bar!=0)
+						if(sm.players[rammed_player].health_bar>=0)
 						{
 							sm.bots[k].x=temp_x;
 							sm.bots[k].y=temp_y;
 							update_health(&sm.players[rammed_player], -1);
+					
+							if (sm.players[rammed_player].health_bar<=0){// todo: Reached 0HP 10sec count 
+								//draw_player(my_win, &sm.players[i], false);
+								mvwprintw(message_win, 2, 1, "Player %c reached 0 HP", sm.players[i].c);
+								sm.type = 3;
+								n = write(socket_array[rammed_player], &sm, sizeof(server_message));
+								pthread_create(&hpo, NULL, hp_o, rammed_player);
+							}
 						}
 					}
 					else if(rammed_player==-1)
@@ -505,7 +557,7 @@ void *computation(void *arg)
 					//move player accordingly and check for collisions
 					temp_x=sm.players[i].x;
 					temp_y=sm.players[i].y;
-					//draw_player(my_win, &sm.players[i], false);
+					draw_player(my_win, &sm.players[i], false);
 					sm.players[i].x = current_player->x;
 					sm.players[i].y = current_player->y;
 					rammed_player = check_collision(0, i);
@@ -517,6 +569,13 @@ void *computation(void *arg)
 							sm.players[i].y=temp_y;
 							update_health(&sm.players[i], -2);
 							update_health(&sm.players[rammed_player], -1);
+							if (sm.players[rammed_player].health_bar<=0){// todo: Reached 0HP 10sec count 
+								//draw_player(my_win, &sm.players[i], false);
+								mvwprintw(message_win, 2, 1, "Player %c reached 0 HP", sm.players[i].c);
+								sm.type = 3;
+								n = write(socket_array[rammed_player], &sm, sizeof(server_message));
+								pthread_create(&hpo, NULL, hp_o, rammed_player);
+							}
 						}
 					
 					}
@@ -536,19 +595,6 @@ void *computation(void *arg)
 				draw_player(my_win, &sm.players[i], true);
 				//draw_player(my_win, &sm.players[i], true);
 				
-				if (sm.players[i].health_bar<=0){// todo: Reached 0HP 10sec count 
-					//draw_player(my_win, &sm.players[i], false);
-					mvwprintw(message_win, 2, 1, "Player %c reached 0 HP", sm.players[i].c);
-					sm.players[i].c = '\0';
-					sm.type = 3;
-					n = write(socket_array[i], &sm, sizeof(server_message));
-					//closes socket
-					close(socket_array[i]);
-					socket_array[i]=0;
-					player_count--;
-					pthread_exit(NULL);
-					//close associated thread also
-				}
 				free(current_player);
 				current_player = NULL;
 			}
@@ -559,7 +605,7 @@ void *computation(void *arg)
 			// box(message_win, 0, 0);
 			
 			//Send the player its and the field's updated status
-			pthread_create(&id[4], NULL, update_players, NULL);
+			pthread_create(&updater, NULL, update_players, NULL);
 			for (k=0; k<MAX_PRIZES; k++){
 				if (sm.prizes[k].c!='\0')
 					draw_player(my_win, &sm.prizes[k], true);
@@ -579,7 +625,7 @@ void *computation(void *arg)
 			//}
 			//Send the players the field's updated status
 			//screen_update();
-			pthread_create(&updater, NULL, update_players, NULL);
+			// pthread_create(&updater, NULL, update_players, NULL);
 		}		
 		// wrefresh(message_win);
 		// wrefresh(my_win);
@@ -597,6 +643,7 @@ void *cli_reciever(void *arg)
 	int player_pos = (int) arg;
 	char player_char = '?';
 	player_position_t *item;
+	pthread_t updater;
 
 	while(1)
 	{
@@ -614,7 +661,7 @@ void *cli_reciever(void *arg)
 		// wclrtoeol(message_win);  
 		// werase(message_win);
 		// box(message_win, 0 , 0);	
-		mvwprintw(message_win, 8, 1, "%d %c", cm.type, cm.arg);
+		mvwprintw(message_win, 6, 1, "%d %c", cm.type, cm.arg);
 		switch (cm.type){
 			case 0: //Message about player's connection
 				if(cm.arg == 'c') // connect player
@@ -652,7 +699,7 @@ void *cli_reciever(void *arg)
 					close(socket_array[player_pos]);
 					socket_array[player_pos]=0;
 					//updates other players
-					pthread_create(&id[4], NULL, update_players, NULL);
+					pthread_create(&updater, NULL, update_players, NULL);
 					player_count--;
 					pthread_exit(NULL);
 				}
@@ -673,6 +720,12 @@ void *cli_reciever(void *arg)
 					InsertLast(q, item);
 					pthread_mutex_unlock(&lock);
 				}
+			break;
+			case 2:
+				pthread_mutex_lock(&lock);
+				if(cv[player_pos].n==0) cv[player_pos].n = 1; 
+				n = pthread_cond_signal(&cv[player_pos].cv);
+				pthread_mutex_unlock(&lock);
 			break;
 
 			default:
@@ -695,7 +748,7 @@ void *tcp_accepter(void *arg)
 				socket_array[i]=new_client;
 				mvwprintw(message_win, 6, 1, "accepted descriptor %d", new_client);
 
-				pthread_create (&id[i+5], NULL, cli_reciever, i);
+				pthread_create (&id[i+4], NULL, cli_reciever, i);
 				break;
 			}
 		}
