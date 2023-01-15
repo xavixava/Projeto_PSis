@@ -14,13 +14,18 @@ typedef struct player_position_t{
 // if server sends disconecting then it means it cannot accept more clients
 
 typedef struct client_message{	//later on define field status messages
-    int type; // 0-conection, 1-movement
+    int type; // 0-conection, 1-movement, 2 - continue(response to hp_o)
     char arg;  // conection: c-conecting, d-disconecting; movement: u, d, l, r
 } client_message;
 
 typedef struct server_message{	//later on define field status messages
-    int type; // 0-conection accepted, 1-field is full, 2-to do: disconnect from Health_0, 3-Health_0, 4-field_update
+    int type; // 0-conection accepted, 1-field is full, 2-to do: disconnect, 3-Health_0, 4-field_update
     player_position_t players[MAX_PLAYERS];
     player_position_t bots[MAX_BOTS];
     player_position_t prizes[MAX_PRIZES]; // number of elements to be able to receive field status message
 } server_message;
+
+typedef struct cond_t{	// solves hp0 synchronization
+    pthread_cond_t cv; 
+    short n;  // 0 - waiting, 1 - continue, 2 - ten sec passed 
+} cond_t;

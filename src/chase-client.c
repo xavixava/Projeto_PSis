@@ -11,7 +11,8 @@
 
 WINDOW * message_win;
 WINDOW * my_win;
-int n, fd;
+int n, fd, k;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
 /*
  * Draws players in correct position if delete is true
@@ -85,10 +86,42 @@ int create_socket(char *ip, int port){
 	return sock_fd;
 }
 
+void *wait_ten(void *arg)
+{
+	int i;
+	for(i=0; i<10; i++)
+	{
+		pthread_mutex_lock(&lock);
+		if(k == 1) pthread_exit(NULL);
+  		mvwprintw(message_win, 5,1,"k:%d", k);
+		pthread_mutex_unlock(&lock);
+		werase(message_win);
+		box(message_win, 0 , 0);	
+  		mvwprintw(message_win, 1,1,"HP - 0");
+		mvwprintw(message_win, 2,1, "\"c\"-continue");
+		mvwprintw(message_win, 2,1,"\"c\"-continue");
+		mvwprintw(message_win, 3,1,"%d seconds left", 10-i);
+		wrefresh(message_win);
+		sleep(1);	
+	}
+	pthread_mutex_lock(&lock);
+	if(k == 1) pthread_exit(NULL);
+	pthread_mutex_unlock(&lock);
+	mvwprintw(message_win, 2,1,"Exiting");
+	wrefresh(message_win);	
+	sleep(1);
+	close(fd);
+	exit(0);
+}
+
 void *recv_update(void *arg)
 {
 	server_message *sm = arg;
 	int count;
+	int n;
+	pthread_t id;
+	
+	k=0;
 	
 	while(1)
 	{	
@@ -100,15 +133,14 @@ void *recv_update(void *arg)
 			sleep(2);
 			exit(0);
 		}
+		
 		if(sm->type==3){
 			//todo: now health_0 doesn't do that
-			werase(message_win);
-			box(message_win, 0 , 0);	
-			mvwprintw(message_win, 1,1,"HP - 0");
-			mvwprintw(message_win, 2,1,"Exiting");
-			wrefresh(message_win);	
-			sleep(5);
-			return 0;
+        		pthread_mutex_lock(&lock);
+			k = -1;
+        		pthread_mutex_unlock(&lock);
+			pthread_create(&id, NULL, wait_ten, NULL);
+			pthread_join(id, NULL);
 		}
 		count=0;	// update screen and players health
 
@@ -135,9 +167,9 @@ void *recv_update(void *arg)
 				draw_player(my_win, &sm->bots[i], true);
 			}
 		}
+		wrefresh(message_win);	
+		wrefresh(my_win);	
 	}
-	wrefresh(message_win);	
-	wrefresh(my_win);	
 	return NULL;
 }
 
@@ -226,34 +258,43 @@ int main(int argc, char* argv[]){
 	pthread_create(&id, NULL, recv_update, &sm); 
 		
 	while(key != 27 && key!= 'q'){ //awaits movement updates until disconnection or health_0
+		cm.type = 1;
         	key = wgetch(my_win);
         	switch(key)
 		{
 			case KEY_LEFT:
             			cm.arg = 'l';
-						n = write(fd, &cm, sizeof(client_message));	
 			break;
 			
 			case KEY_RIGHT:
             			cm.arg = 'r';
-						n = write(fd, &cm, sizeof(client_message));	
 			break;
 			
 			case KEY_UP:
             			cm.arg = 'u';
-						n = write(fd, &cm, sizeof(client_message));	
 			break;
 			
 			case KEY_DOWN:
             			cm.arg = 'd';
-						n = write(fd, &cm, sizeof(client_message));	
 			break;
-
+			case 'c':
+				pthread_mutex_lock(&lock);
+				if(k==-1)
+				{
+					mvwprintw(message_win, 6,1,"Continuing");
+					k = 1;
+					cm.type = 2;	
+					n = write(fd, &cm, sizeof(client_message));	
+				}
+				pthread_mutex_unlock(&lock);
+			break;
 		}
-	
+		pthread_mutex_unlock(&lock);	
+		if(k!=-1) n = write(fd, &cm, sizeof(client_message));	
+		pthread_mutex_unlock(&lock);
 		if(n == -1)perror("Send error(please press ctrl+C)");
         	
-		mvwprintw(message_win, 1,1,"Message sent: %d %c", cm.type, cm.arg);
+		// mvwprintw(message_win, 1,1,"Message sent: %d %c", cm.type, cm.arg);
 		wrefresh(message_win);	
 	}
 	
