@@ -20,7 +20,7 @@ Queue *q;
 WINDOW * message_win;
 WINDOW *my_win;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_t id[15];  // 0-9: players; 10: prize_gen; 11: bot_gen; 12: update players; 13: tcp listener
+pthread_t id[5+MAX_PLAYERS];  // 0-9: players; 0: prize_gen; 1: bot_gen; 2: computation; 3: tcp listener; 4: update players
 
 short bot_nr;
 
@@ -33,14 +33,11 @@ int socket_array[MAX_PLAYERS];
 server_message sm;
 
 
-/*
- * I think it will be necessary to have the bots messaging in a special way, unless we find 10 special chars just for distinguishing the bots
- * either the queue or this struct will be the thread argument and both will be used to comunicate between threads 
- */
-typedef struct thread_com{
-    Queue *q;
-    char *bot_move;
-} thread_com;
+int search_player(player_position_t vector[], char c){
+	int i;
+	for(i=0; i<MAX_PLAYERS; i++)if(vector[i].c==c) return i;
+	return -1;
+}
 
 /*
  * Chooses which direction the bots will move to
@@ -48,9 +45,7 @@ typedef struct thread_com{
  */
 void *bot_gen(void *arg)
 {	
-	thread_com *c = arg;
-	Queue *q = c->q;
-	char *bot_vector = c->bot_move;
+	char *bot_vector = arg;
 	int i, direction;
 	player_position_t bot_warn;
 	
@@ -100,6 +95,20 @@ int generate_prize()
 	return (random()%5)+1;
 }
 
+char generate_player_char()
+{
+	int player_num;
+	char player = 'a';
+	while (search_player(sm.players, player)!=-1)
+	{
+		player_num = (random()%52);
+		if(player_num < 26)
+			player ='a' + player_num;
+		else player = 'A' + player_num;	
+	}
+	return player;
+}
+
 void *prize_gen(void *arg)
 {	
 	int i; 
@@ -124,8 +133,6 @@ void *prize_gen(void *arg)
 		pthread_mutex_unlock(&lock);
     
 		i = (i >= 9) ? 0 : i+1;
-
-		//mvwprintw(message_win, 5,1,"%d", i);
 	}
 		
 
@@ -310,8 +317,6 @@ void moove_player (player_position_t * player, char direction){
             player->y ++;
         }
     }
-    
-
     if (direction == 'l'){
         if (player->x != 1){
             player->x --;
@@ -321,6 +326,30 @@ void moove_player (player_position_t * player, char direction){
         if (player->x != WINDOW_SIZE-2){
             player->x ++;
     }
+}
+
+/*
+Clears the server screen and updates it
+*/
+void screen_update(){
+		werase(my_win);	
+		box(my_win, 0 , 0);	
+
+		for(int i=0; i<MAX_PLAYERS; i++){ 	//update the players on screen
+			if(sm.players[i].c!='\0' && sm.players[i].health_bar>0){
+				draw_player(my_win, &sm.players[i], true);
+			}
+		}
+		for(int i=0; i<MAX_PRIZES; i++){	//update the prizes on screen
+			if(sm.prizes[i].c!='\0'){
+				draw_player(my_win, &sm.prizes[i], true);
+			}
+		}
+		for(int i=0; i<MAX_BOTS; i++){ 		//update the bots on screen
+			if(sm.bots[i].c!='\0'){
+				draw_player(my_win, &sm.bots[i], true);
+			}
+		}
 }
 
 /*
@@ -351,11 +380,7 @@ int create_socket(int port){
 	return sock_fd;
 }
 
-int search_player(player_position_t vector[], char c){
-	int i;
-	for(i=0; i<MAX_PLAYERS; i++)if(vector[i].c==c) return i;
-	return -1;
-}
+
 
 void clear_hp_changes(int vector[]){
 	int i;
@@ -395,8 +420,7 @@ void *update_players(void *arg)
  */
 void *computation(void *arg)
 {
-	thread_com *c = arg;
-	char *bot_vector = c->bot_move;
+	char *bot_vector = arg;
 	player_position_t *current_player;
 	int i, j, k, temp_x, temp_y, rammed_player;
 
@@ -412,29 +436,29 @@ void *computation(void *arg)
 
 		if(current_player != NULL)
 		{
-
+			//werase(message_win);
+			//box(message_win, 0 , 0);	
 			//content of message from FIFO being processed
 			mvwprintw(message_win, 1, 1, "%c %d %d %d", current_player->c, current_player->x, current_player->y, current_player->health_bar);
 
-			if('1' <= current_player->c && current_player->c <= '5') // new prize on field
-			{
+			if('1' <= current_player->c && current_player->c <= '5') 
+			{ // new prize on field
 				j=0;
 				while(sm.prizes[j].c!='\0' && j<MAX_PRIZES) j++;  // find empty prize 
 				if (j != 10)
 				{
 					new_player (2, j, current_player->c);  // checks if space is occupied
-					draw_player(my_win, &sm.prizes[j], true);
-					//draw_player(my_win, &sm.players[player_pos], true);
+					//draw_player(my_win, &sm.prizes[j], true);
 					mvwprintw(message_win, 3,1,"New Prize: %d %d %c", sm.prizes[j].x, sm.prizes[j].y, current_player->c);
 				}
 			}
-			else if(current_player->c == '*') // update bots
-			{
+			else if(current_player->c == '*') 
+			{ // update bots
 				for(k=0; k<bot_nr; k++)  //move each bot accordingly and check for collision
 				{							
 					temp_x=sm.bots[k].x;
 					temp_y=sm.bots[k].y;
-					draw_player(my_win, &sm.bots[k], false);
+					//draw_player(my_win, &sm.bots[k], false);
 					moove_player (&sm.bots[k], bot_vector[k]);
 					rammed_player = check_collision(1, k);
 							
@@ -447,27 +471,26 @@ void *computation(void *arg)
 							update_health(&sm.players[rammed_player], -1);
 						}
 					}
-					else if(rammed_player==-1) //|| (rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES))
+					else if(rammed_player==-1)
 					{ //bot hit another bot or prize
 						sm.bots[k].x=temp_x;
 						sm.bots[k].y=temp_y;
 					}
-					draw_player(my_win, &sm.bots[k], true);
-					mvwprintw(message_win, 4,1,"                       ");
+					//draw_player(my_win, &sm.bots[k], true);
+					//mvwprintw(message_win, 4,1,"                       ");
 					mvwprintw(message_win, 4,1,"Bots: %d %d", sm.bots[k].x, sm.bots[k].y);
 				}
 			}
-			else if(current_player->c > 'a' && current_player->c < 'z') // move player
-			{ 
+			else if((current_player->c >= 'a' && current_player->c <= 'z') || (current_player->c >= 'A' && current_player->c <= 'Z')) 
+			{ // move player
 				i = current_player-> health_bar;  // since we don't need to save hp in queue, then health_bar saves index
-				// i = search_player(sm.players, current_player->c);
 				if(i<0 || i>= MAX_PLAYERS) mvwprintw(message_win, 7,1,"Char %c not found.", current_player->c); // needed better check
 				else
 				{
 					//move player accordingly and check for collisions
 					temp_x=sm.players[i].x;
 					temp_y=sm.players[i].y;
-					draw_player(my_win, &sm.players[i], false);
+					//draw_player(my_win, &sm.players[i], false);
 					sm.players[i].x = current_player->x;
 					sm.players[i].y = current_player->y;
 					rammed_player = check_collision(0, i);
@@ -491,14 +514,14 @@ void *computation(void *arg)
 					else if(rammed_player>=MAX_PLAYERS && rammed_player<MAX_PLAYERS+MAX_PRIZES)
 					{	// found prize
 						update_health(&sm.players[i], sm.prizes[rammed_player-MAX_PLAYERS].health_bar);
-						draw_player(my_win, &sm.prizes[rammed_player-MAX_PLAYERS], false);
+						//draw_player(my_win, &sm.prizes[rammed_player-MAX_PLAYERS], false);
 						sm.prizes[rammed_player-MAX_PLAYERS].c='\0';
 					}
 				}
-					draw_player(my_win, &sm.players[i], true);
+				//draw_player(my_win, &sm.players[i], true);
 				
 				if (sm.players[i].health_bar<=0){// todo: Reached 0HP 10sec count 
-					draw_player(my_win, &sm.players[i], false);
+					//draw_player(my_win, &sm.players[i], false);
 					mvwprintw(message_win, 2, 1, "Player %c reached 0 HP", sm.players[i].c);
 					sm.players[i].c = '\0';
 					sm.type = 3;
@@ -507,18 +530,19 @@ void *computation(void *arg)
 					close(socket_array[i]);
 					socket_array[i]=0;
 					player_count--;
-					pthread_cancel(id[i]);
+					pthread_cancel(id[i+5]);
 					//close associated thread also
 				}
 				free(current_player);
 				current_player = NULL;
 			}
-			for (k=0; k<MAX_PRIZES; k++){
-				if (sm.prizes[k].c!='\0')
-					draw_player(my_win, &sm.prizes[k], true);
-			}
-			//Send the player its and the field's updated status
-			pthread_create(&id[14], NULL, update_players, NULL);
+			//for (k=0; k<MAX_PRIZES; k++){
+				//if (sm.prizes[k].c!='\0')
+					//draw_player(my_win, &sm.prizes[k], true);
+			//}
+			//Send the players the field's updated status
+			screen_update();
+			pthread_create(&id[4], NULL, update_players, NULL);
 		}		
 		wrefresh(message_win);
 	}
@@ -526,7 +550,6 @@ void *computation(void *arg)
 
 player_position_t *alloc()
 {
-	
 	return (player_position_t *) (malloc(sizeof(player_position_t)));
 }
 
@@ -534,6 +557,7 @@ void *cli_reciever(void *arg)
 {
 	client_message cm;
 	int player_pos = (int) arg;
+	char player_char = '?';
 	player_position_t *item;
 
 	while(1)
@@ -549,66 +573,56 @@ void *cli_reciever(void *arg)
 		}
 		// add read verification
 		//mvwprintw(message_win, 8, 1, "                       ");
-		wmove(message_win, 8, 1);          // move to begining of line
-		wclrtoeol(message_win);
-		mvwprintw(message_win, 8, 1, "%d %c %c", cm.type, cm.arg, cm.c);
+		//wmove(message_win, 8, 1);          // move to begining of line
+		//wclrtoeol(message_win);
+		mvwprintw(message_win, 8, 1, "%d %c", cm.type, cm.arg);
 		switch (cm.type){
 			case 0: //Message about player's connection
-				if(cm.arg == 'c')
+				if(cm.arg == 'c') // connect player
 				{
 					if (player_count >= MAX_PLAYERS){ // field is full		
-						sm.type = 2;	
-
+						sm.type = 1;	
 						n = write(socket_array[player_pos], &sm, sizeof(server_message));
 						// todo: add verification	
 					}	
-					else {//if(sm.players[player_pos].c == '\0'){ // accepted player (Is the if needed?)
-
-						new_player (0, player_pos, cm.c); 
+					else {	// player was accepted
+						player_char = generate_player_char();
+						new_player (0, player_pos, player_char); 
 						sm.type = 0;	
-					
 						n = write(socket_array[player_pos], &sm, sizeof(server_message));
 						if(n==-1)perror("sendto error");
 						// todo: add proper n verification
 
-						draw_player(my_win, &sm.players[player_pos], true);					
-						//pthread_create(&id[14], NULL, update_players, NULL);
+						draw_player(my_win, &sm.players[player_pos], true);		
+						//Update the players about new character		
+						pthread_create(&id[4], NULL, update_players, NULL);
 						player_count++;
 					}
-					//We aren't checking for repeated characters and they'll be chosen by the server anyway
-					/*
-					else // repeated character
-					{
-						sm.type = 2;
-						n = write(socket_array[player_pos], &sm, sizeof(server_message));
-						if(n==-1)perror("sendto error");
-						// todo: add proper n verification
-					}	
-					*/
 				}
-				else if (cm.arg == 'd')	// disconect player
+				else if (cm.arg == 'd')	// disconnect player
 				{
-					if(sm.players[player_pos].c=='\0')  mvwprintw(message_win, 7,1,"Char %c not found.", cm.c);
+					if(sm.players[player_pos].c=='\0')  mvwprintw(message_win, 7,1,"Char %c not found.", player_char);
 					
 					else  draw_player(my_win, &sm.players[player_pos], false);
 
-					mvwprintw(message_win, 2,1,"player %c disconnected", cm.c);
+					mvwprintw(message_win, 2,1,"player %c disconnected", player_char);
 					sm.players[player_pos].c = '\0';
 					//closes socket
 					close(socket_array[player_pos]);
 					socket_array[player_pos]=0;
 					//updates other players
-					pthread_create(&id[14], NULL, update_players, NULL);
+					pthread_create(&id[4], NULL, update_players, NULL);
 					player_count--;
 					pthread_exit(NULL);
 				}
-				else mvwprintw(message_win, 5,1,"Wrong format %d, %c, %c", cm.type, cm.arg, cm.c);
+				else mvwprintw(message_win, 5,1,"Wrong format: %d %c %c", cm.type, cm.arg, player_char);
 			break;
 			case 1: //Message about player's movement
-				if(cm.c == sm.players[player_pos].c)
+				if(player_char == sm.players[player_pos].c)
 				{
+				wrefresh(message_win);
 					item = alloc();
-					item->c = cm.c;
+					item->c = player_char;
 					item->x = sm.players[player_pos].x;
 					item->y = sm.players[player_pos].y;
 					item->health_bar = player_pos;
@@ -621,9 +635,9 @@ void *cli_reciever(void *arg)
 			break;
 
 			default:
-				mvwprintw(message_win, 5,1,"Wrong format %d, %c, %c", cm.type, cm.arg, cm.c);
+				mvwprintw(message_win, 5,1,"Wrong format: %d %c %c", cm.type, cm.arg, player_char);
 				return 0;
-				break;
+			break;
 	 	}
 	}
 }
@@ -634,20 +648,16 @@ void *tcp_accepter(void *arg)
 	struct sockaddr_in client_addr;
 	socklen_t client_addr_size = sizeof(struct sockaddr_in);
 	while(1){
-		//The check for the limit is done in cli_reciever (which allows the client to know why isn't being accepted), this is redundant
-		//if (player_count < MAX_PLAYERS){ 
-			new_client = accept(fd, (struct sockaddr*)&client_addr, &client_addr_size);
-			for (i=0; i<MAX_PLAYERS; i++){
-				if (socket_array[i]==0){
-					socket_array[i]=new_client;
-					mvwprintw(message_win, 6, 1, "accepted on descriptor %d", new_client);
+		new_client = accept(fd, (struct sockaddr*)&client_addr, &client_addr_size);
+		for (i=0; i<MAX_PLAYERS; i++){
+			if (socket_array[i]==0){
+				socket_array[i]=new_client;
+				mvwprintw(message_win, 6, 1, "accepted descriptor %d", new_client);
 
-					pthread_create (&id[i], NULL, cli_reciever, i);
-					break;
-				}
+				pthread_create (&id[i+5], NULL, cli_reciever, i);
+				break;
 			}
-		//	player_count++;
-		//}
+		}
 	}
 	mvwprintw(message_win, 6, 1, "Returning");
 	return 0;
@@ -658,7 +668,6 @@ int main(int argc, char* argv[])
 {
 	int i; 
 	char bot_message[MAX_BOTS];
-	thread_com messager; //will be used for thread communication
 	struct sigaction act;
   
 	srand(time(NULL));
@@ -679,8 +688,6 @@ int main(int argc, char* argv[])
 
 	player_count = 0;
 	q = QueueNew();	
-	messager.q = q;
-	messager.bot_move = bot_message;
 	bot_nr = 10;
 
 	memset(socket_array, 0, MAX_PLAYERS*sizeof(int));
@@ -717,17 +724,16 @@ int main(int argc, char* argv[])
 	
 	for(i=0; i<bot_nr; i++){ 
 		new_player (1, i, '*');
-		// mvwprintw(message_win, 1,1,"Bot in x:%d y:%d", sm.bots[i].x, sm.bots[i].y);
 		draw_player(my_win, &sm.bots[i], true);
 		wrefresh(message_win);
 	}
 
-	pthread_create(&id[13], NULL, tcp_accepter, NULL); //starts thread to check for new connections
-	pthread_create(&id[12], NULL, computation, &messager);  	//starts thread that will compute 
-	pthread_create(&id[11], NULL, bot_gen, &messager);  		//starts bot generating thread
-	pthread_create(&id[10], NULL, prize_gen, q);  				//starts prize generating thread	
+	pthread_create(&id[3], NULL, tcp_accepter, NULL); //starts thread to check for new connections
+	pthread_create(&id[2], NULL, computation, &bot_message);  	//starts thread that will compute 
+	pthread_create(&id[1], NULL, bot_gen, &bot_message);  		//starts bot generating thread
+	pthread_create(&id[0], NULL, prize_gen, q);  				//starts prize generating thread	
 	
-	pthread_join(id[12], NULL);
+	pthread_join(id[2], NULL);
 	
     freeQueue(q);
     exit(0);

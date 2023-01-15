@@ -11,21 +11,12 @@
 
 WINDOW * message_win;
 WINDOW * my_win;
-int fd;
-
-
-//unused
-void new_player (player_position_t * player, char c){
-    player->x = WINDOW_SIZE/2;
-    player->y = WINDOW_SIZE/2;
-    player->c = c;
-}
+int n, fd;
 
 /*
  * Draws players in correct position if delete is true
  * If delete if false the player will be deleted
  */
-
 void draw_player(WINDOW *win, player_position_t * player, int delete){
     int ch;
     if(delete){
@@ -39,7 +30,6 @@ void draw_player(WINDOW *win, player_position_t * player, int delete){
     waddch(win,ch);
     wrefresh(win);
 }
-
 
 void moove_player (player_position_t * player, int direction){
     if (direction == KEY_UP){
@@ -66,9 +56,8 @@ void moove_player (player_position_t * player, int direction){
 }
 
 /*
-Create a socket to be able to comunicate with clients
+Create a socket to be able to comunicate with server
 */
-
 int create_socket(char *ip, int port){
 
 	int sock_fd;
@@ -99,13 +88,12 @@ int create_socket(char *ip, int port){
 void *recv_update(void *arg)
 {
 	server_message *sm = arg;
-	int n, count;
+	int count;
 	
 	while(1)
 	{	
-		n = recv(fd, sm, sizeof(server_message), 0);
+		n = read(fd, sm, sizeof(server_message));
 		// todo: verify read
-		//if(n == -1)perror("Recv error(please press ctrl+C)");
 		if(n==0)
 		{
 			mvwprintw(message_win, 1, 1, "Disconnected from server.");
@@ -113,7 +101,6 @@ void *recv_update(void *arg)
 			exit(0);
 		}
 		if(sm->type==3){
-
 			//todo: now health_0 doesn't do that
 			werase(message_win);
 			box(message_win, 0 , 0);	
@@ -123,45 +110,41 @@ void *recv_update(void *arg)
 			sleep(5);
 			return 0;
 		}
-	
 		count=0;	// update screen and players health
+
+		//Clears screens of old information
 		werase(my_win);
 		werase(message_win);
 		box(message_win, 0 , 0);	
 		box(my_win, 0 , 0);	
-		for(int i=0; i<MAX_PLAYERS; i++){ 
+
+		for(int i=0; i<MAX_PLAYERS; i++){ 	//update the players on screen
 			if(sm->players[i].c!='\0' && sm->players[i].health_bar>0){
 				draw_player(my_win, &sm->players[i], true);
 				count++;
-        			mvwprintw(message_win, count,1,"%c %d", sm->players[i].c, sm->players[i].health_bar);
+				mvwprintw(message_win, count+1, 1, "%c %d", sm->players[i].c, sm->players[i].health_bar);
 			}
 		}
-		for(int i=0; i<MAX_PRIZES; i++){
-				if(sm->prizes[i].c!='\0'){
+		for(int i=0; i<MAX_PRIZES; i++){	//update the prizes on screen
+			if(sm->prizes[i].c!='\0'){
 				draw_player(my_win, &sm->prizes[i], true);
 			}
 		}
-		for(int i=0; i<MAX_BOTS; i++){ 
+		for(int i=0; i<MAX_BOTS; i++){ 		//update the bots on screen
 			if(sm->bots[i].c!='\0'){
-			draw_player(my_win, &sm->bots[i], true);
+				draw_player(my_win, &sm->bots[i], true);
 			}
 		}
-		// copy = sm;
 	}
 	return NULL;
 }
 
 
-player_position_t p1;
-
 int main(int argc, char* argv[]){
 
-	int n;
-	server_message sm, copy;
+	server_message sm;
 	client_message cm;
-	//struct sockaddr_in server_addr;
-	//socklen_t server_addr_size = sizeof(struct sockaddr_in);
-	int key;
+	int key, count = 0;
 	pthread_t id;
 
 	if(argc != 3)
@@ -171,91 +154,73 @@ int main(int argc, char* argv[]){
 	}
 	
 	// todo: still lacks ip and port verification
-
 	fd = create_socket(argv[1], atoi(argv[2]));
-
-	if(argc != 3)
-	{
-		printf("./src/chase-client.c <ip> <port>\n");
-		exit(0);
-	}
 	
-	// todo: still lacks ip and port verification
-
-	fd = create_socket(argv[1], atoi(argv[2]));
-
 	initscr();		    	/* Start curses mode 		*/
 	cbreak();				/* Line buffering disabled	*/
 	keypad(stdscr, TRUE);   /* We get F1, F2 etc..		*/
 	noecho();			    /* Don't echo() while we do getch */
 
-    	/* creates a window and draws a border */
-    	my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
-    	box(my_win, 0 , 0);	
+	/* creates a window and draws a border */
+	my_win = newwin(WINDOW_SIZE, WINDOW_SIZE, 0, 0);
+	box(my_win, 0 , 0);	
 	wrefresh(my_win);
-    	keypad(my_win, true);
+	keypad(my_win, true);
     	
 	/* creates a window and draws a border */
 	message_win = newwin(12, WINDOW_SIZE, WINDOW_SIZE, 0);
 	box(message_win, 0 , 0);	
 	wrefresh(message_win);
-	
-	sm.type=2;	
-	do	// tries different characters until server accepts it, to avoid repeated characters
+
+	// prepares and sends connecting message
+	cm.type = 0;	
+	cm.arg = 'c';
+
+	n = write(fd, &cm, sizeof(client_message)); 	
+	// todo: add verification	
+	if(n == -1)	// no server is running 
 	{
-        	mvwprintw(message_win, 1,1,"Choose ur character(a-z)");
-        	wrefresh(message_win);	
-    		
-        	key = wgetch(my_win);
-		if('a' <= tolower(key) && tolower(key) <= 'z') // only accepts characters from A-Z or a-z
-		{
-    			cm.type = 0;	// preparing connecting message
-			cm.arg = 'c';
-			cm.c = key;
-        		
-			mvwprintw(message_win, 3,1,"Selected %c", cm.c);
-   
-			n = write(fd, &cm, sizeof(client_message)); 	
-			// todo: add verification	
-			if(n == -1)	// no server is running 
-			{
-				printf("Server disconected\n");
-				return 0;
-			}
-			n = read(fd, &sm, sizeof(server_message));
-			// todo: add verification
-			if(n == -1)perror("Recv error(please press ctrl+C)");
-			else if(sm.type==1)	// there are already 10 players
-			{
-        			mvwprintw(message_win, 1,1,"Server full");
-				exit(0);
-			}
-		}
-	}while(sm.type==2);
-		
-	int count = 0;
+		printf("Server disconected\n");
+		return 0;
+	}
+
+	mvwprintw(message_win, 1,1,"Connecting [%d %c]", cm.type, cm.arg);
+	wrefresh(message_win);	
+
+	n = read(fd, &sm, sizeof(server_message));
+	// todo: add verification
+	if(n == -1)perror("Recv error(please press ctrl+C)");
+	else if(sm.type==1)	// field is full
+	{
+		mvwprintw(message_win, 1,1,"Server full");
+		exit(0);
+	}
+	else if(sm.type==0){ // player was accepted
+		mvwprintw(message_win, 1,1,"Conn Successful");
+		wrefresh(message_win);	
+	}
+
 	werase(message_win);
 	box(message_win, 0 , 0);	
-	for(int i=0; i<MAX_PLAYERS; i++){ //update the screen
+	for(int i=0; i<MAX_PLAYERS; i++){	//update the players on screen
 		if(sm.players[i].c!='\0' && sm.players[i].health_bar>0){
 			draw_player(my_win, &sm.players[i], true);
 			count++;
-        		mvwprintw(message_win, count,1,"%c %d", sm.players[i].c, sm.players[i].health_bar);
+			mvwprintw(message_win, count+1, 1, "%c %d", sm.players[i].c, sm.players[i].health_bar);
 		}
 	}
-	for(int i=0; i<MAX_PRIZES; i++){ //update the screen
+	for(int i=0; i<MAX_PRIZES; i++){ 	//update the prizes on screen
 		if(sm.prizes[i].c!='\0'){
 			draw_player(my_win, &sm.prizes[i], true);
 		}
 	}
-	for(int i=0; i<MAX_BOTS; i++){ //update the screen
+	for(int i=0; i<MAX_BOTS; i++){ 		//update the bots on screen
 		if(sm.bots[i].c!='\0'){
 			draw_player(my_win, &sm.bots[i], true);
 		}
 	}
-	wrefresh(message_win);	
+
 	cm.type = 1;
-	
 	pthread_create(&id, NULL, recv_update, &sm); 
 		
 	while(key != 27 && key!= 'q'){ //awaits movement updates until disconnection or health_0
@@ -283,47 +248,31 @@ int main(int argc, char* argv[]){
 			break;
 
 		}
-
-		//n = write(fd, &cm, sizeof(client_message));	
+	
 		if(n == -1)perror("Send error(please press ctrl+C)");
         	
-		/*
-		// clear screen so we can print new screen	
-
-		for(int i=0; i<MAX_PLAYERS; i++){ 
-			if(sm.players[i].c!='\0'){
-				draw_player(my_win, &sm.players[i], false);
-			}
-		}
-		for(int i=0; i<MAX_PRIZES; i++){ 
-			//if(sm.prizes[i].c!='\0'){
-				draw_player(my_win, &sm.prizes[i], false);
-			//}
-		}
-		for(int i=0; i<MAX_BOTS; i++){ 
-			if(sm.bots[i].c!='\0'){
-				draw_player(my_win, &sm.bots[i], false);
-			}
-		}*/
-		
-        	wrefresh(message_win);	
+		mvwprintw(message_win, 1,1,"Message sent: %d %c", cm.type, cm.arg);
+		wrefresh(message_win);	
 	}
 	
+	// prepares and sends disconnecting message
 	cm.type = 0; 
 	cm.arg = 'd';
-	mvwprintw(message_win, 3,1,"%d %c %c", cm.type, cm.arg, cm.c);
-	wrefresh(message_win);	
-	n = send(fd, &cm, sizeof(client_message), 0);
-	sleep(2);	
-	if(n == -1)//perror("Send error(please press ctrl+C)");
+
+	n = write(fd, &cm, sizeof(client_message)); 	
+	// todo: add verification	
+	if(n == -1)
 	{
 		werase(message_win);
 		box(message_win, 0 , 0);	
-		mvwprintw(message_win, 2,1,"Exiting Game");
+		mvwprintw(message_win, 1,1,"Exiting Game");
 		wrefresh(message_win);	
-		sleep(2);
-		return 0;
+	}else
+	{
+		mvwprintw(message_win, 1,1,"Disconnecting[%d %c]", cm.type, cm.arg);
+		wrefresh(message_win);	
 	}
 	close(fd);
+	sleep(2);	
 	return 0;
 }
