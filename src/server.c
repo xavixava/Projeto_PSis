@@ -368,7 +368,7 @@ void draw_player(WINDOW *win, player_position_t * player, int delete){
     if(p_x<=0 || p_x >= WINDOW_SIZE || p_y >= WINDOW_SIZE || p_y <= 0) mvwprintw(message_win, 3, 1, "c:%c x:%d y:%d", ch, p_x, p_y);
     else
     {	    
-	mvwprintw(message_win, 3, 1, "c:%c x:%d y:%d", ch, p_x, p_y);
+	// mvwprintw(message_win, 3, 1, "c:%c x:%d y:%d", ch, p_x, p_y);
     	wmove(win, p_y, p_x);
     	waddch(win,ch);
     	wrefresh(win);
@@ -670,7 +670,7 @@ void *cli_reciever(void *arg)
 		// wclrtoeol(message_win);  
 		// werase(message_win);
 		// box(message_win, 0 , 0);	
-		mvwprintw(message_win, 6, 1, "%d %c", cm.type, cm.arg);
+		// mvwprintw(message_win, 6, 1, "%d %c", cm.type, cm.arg);
 		switch (cm.type){
 			case 0: //Message about player's connection
 				if(cm.arg == 'c') // connect player
