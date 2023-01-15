@@ -39,6 +39,13 @@ int search_player(player_position_t vector[], char c){
 	return -1;
 }
 
+
+int search_player(player_position_t vector[], char c){
+	int i;
+	for(i=0; i<MAX_PLAYERS; i++)if(vector[i].c==c) return i;
+	return -1;
+}
+
 /*
  * Chooses which direction the bots will move to
  * Informs the thread that computes all this via queue

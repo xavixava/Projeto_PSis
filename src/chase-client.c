@@ -272,6 +272,8 @@ int main(int argc, char* argv[]){
 		mvwprintw(message_win, 1,1,"Disconnecting[%d %c]", cm.type, cm.arg);
 		wrefresh(message_win);	
 	}
+
+	sleep(2);	
 	close(fd);
 	sleep(2);	
 	return 0;
