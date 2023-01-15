@@ -42,6 +42,13 @@ typedef struct thread_com{
     char *bot_move;
 } thread_com;
 
+
+int search_player(player_position_t vector[], char c){
+	int i;
+	for(i=0; i<MAX_PLAYERS; i++)if(vector[i].c==c) return i;
+	return -1;
+}
+
 /*
  * Chooses which direction the bots will move to
  * Informs the thread that computes all this via queue
@@ -100,6 +107,20 @@ int generate_prize()
 	return (random()%5)+1;
 }
 
+char generate_player_char()
+{
+	int player_num;
+	char player = 'a';
+	while (search_player(sm.players, player)!=-1)
+	{
+			player_num = (random()%26) + 1;
+		//if(player_num<26)
+			player ='a' + player_num;
+		//else player = 'A' + player_num;	
+	}
+	return player;
+}
+
 void *prize_gen(void *arg)
 {	
 	int i; 
@@ -124,8 +145,6 @@ void *prize_gen(void *arg)
 		pthread_mutex_unlock(&lock);
     
 		i = (i >= 9) ? 0 : i+1;
-
-		//mvwprintw(message_win, 5,1,"%d", i);
 	}
 		
 
@@ -351,11 +370,7 @@ int create_socket(int port){
 	return sock_fd;
 }
 
-int search_player(player_position_t vector[], char c){
-	int i;
-	for(i=0; i<MAX_PLAYERS; i++)if(vector[i].c==c) return i;
-	return -1;
-}
+
 
 void clear_hp_changes(int vector[]){
 	int i;
@@ -457,7 +472,7 @@ void *computation(void *arg)
 					mvwprintw(message_win, 4,1,"Bots: %d %d", sm.bots[k].x, sm.bots[k].y);
 				}
 			}
-			else if(current_player->c > 'a' && current_player->c < 'z') // move player
+			else if(current_player->c >= 'a' && current_player->c <= 'z') // move player
 			{ 
 				i = current_player-> health_bar;  // since we don't need to save hp in queue, then health_bar saves index
 				// i = search_player(sm.players, current_player->c);
@@ -534,6 +549,7 @@ void *cli_reciever(void *arg)
 {
 	client_message cm;
 	int player_pos = (int) arg;
+	char player_char = 'a';
 	player_position_t *item;
 
 	while(1)
@@ -551,7 +567,7 @@ void *cli_reciever(void *arg)
 		//mvwprintw(message_win, 8, 1, "                       ");
 		wmove(message_win, 8, 1);          // move to begining of line
 		wclrtoeol(message_win);
-		mvwprintw(message_win, 8, 1, "%d %c %c", cm.type, cm.arg, cm.c);
+		mvwprintw(message_win, 8, 1, "%d %c", cm.type, cm.arg);
 		switch (cm.type){
 			case 0: //Message about player's connection
 				if(cm.arg == 'c')
@@ -563,10 +579,9 @@ void *cli_reciever(void *arg)
 						// todo: add verification	
 					}	
 					else {//if(sm.players[player_pos].c == '\0'){ // accepted player (Is the if needed?)
-
-						new_player (0, player_pos, cm.c); 
+						player_char = generate_player_char();
+						new_player (0, player_pos, player_char); 
 						sm.type = 0;	
-					
 						n = write(socket_array[player_pos], &sm, sizeof(server_message));
 						if(n==-1)perror("sendto error");
 						// todo: add proper n verification
@@ -588,11 +603,11 @@ void *cli_reciever(void *arg)
 				}
 				else if (cm.arg == 'd')	// disconect player
 				{
-					if(sm.players[player_pos].c=='\0')  mvwprintw(message_win, 7,1,"Char %c not found.", cm.c);
+					if(sm.players[player_pos].c=='\0')  mvwprintw(message_win, 7,1,"Char %c not found.", player_char);
 					
 					else  draw_player(my_win, &sm.players[player_pos], false);
 
-					mvwprintw(message_win, 2,1,"player %c disconnected", cm.c);
+					mvwprintw(message_win, 2,1,"player %c disconnected", player_char);
 					sm.players[player_pos].c = '\0';
 					//closes socket
 					close(socket_array[player_pos]);
@@ -602,13 +617,14 @@ void *cli_reciever(void *arg)
 					player_count--;
 					pthread_exit(NULL);
 				}
-				else mvwprintw(message_win, 5,1,"Wrong format %d, %c, %c", cm.type, cm.arg, cm.c);
+				else mvwprintw(message_win, 5,1,"Wrong format %d, %c, %c", cm.type, cm.arg, player_char);
 			break;
 			case 1: //Message about player's movement
-				if(cm.c == sm.players[player_pos].c)
+				if(player_char == sm.players[player_pos].c)
 				{
+				wrefresh(message_win);
 					item = alloc();
-					item->c = cm.c;
+					item->c = player_char;
 					item->x = sm.players[player_pos].x;
 					item->y = sm.players[player_pos].y;
 					item->health_bar = player_pos;
@@ -621,7 +637,7 @@ void *cli_reciever(void *arg)
 			break;
 
 			default:
-				mvwprintw(message_win, 5,1,"Wrong format %d, %c, %c", cm.type, cm.arg, cm.c);
+				mvwprintw(message_win, 5,1,"Wrong format %d, %c", cm.type, cm.arg);
 				return 0;
 				break;
 	 	}
@@ -640,7 +656,7 @@ void *tcp_accepter(void *arg)
 			for (i=0; i<MAX_PLAYERS; i++){
 				if (socket_array[i]==0){
 					socket_array[i]=new_client;
-					mvwprintw(message_win, 6, 1, "accepted on descriptor %d", new_client);
+					mvwprintw(message_win, 6, 1, "accepted descriptor %d", new_client);
 
 					pthread_create (&id[i], NULL, cli_reciever, i);
 					break;
@@ -717,7 +733,6 @@ int main(int argc, char* argv[])
 	
 	for(i=0; i<bot_nr; i++){ 
 		new_player (1, i, '*');
-		// mvwprintw(message_win, 1,1,"Bot in x:%d y:%d", sm.bots[i].x, sm.bots[i].y);
 		draw_player(my_win, &sm.bots[i], true);
 		wrefresh(message_win);
 	}
