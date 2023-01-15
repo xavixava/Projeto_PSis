@@ -12,6 +12,8 @@
 WINDOW * message_win;
 WINDOW * my_win;
 int n, fd;
+server_message sm;
+client_message cm;
 
 /*
  * Draws players in correct position if delete is true
@@ -73,10 +75,10 @@ int create_socket(char *ip, int port){
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = inet_addr(ip);
 	address.sin_port = htons(port);
-
+	
 	int conn_status = connect(sock_fd, (struct sockaddr *)&address, sizeof(address));
- 
-    // Check for connection error
+    
+	// Check for connection error
     if (conn_status < 0) {
         perror("Error\n");
 		    exit(0);
@@ -87,12 +89,11 @@ int create_socket(char *ip, int port){
 
 void *recv_update(void *arg)
 {
-	server_message *sm = arg;
 	int count;
 	
 	while(1)
 	{	
-		n = read(fd, sm, sizeof(server_message));
+		n = read(fd, &sm, sizeof(server_message));
 		// todo: verify read
 		if(n==0)
 		{
@@ -100,7 +101,7 @@ void *recv_update(void *arg)
 			sleep(2);
 			exit(0);
 		}
-		if(sm->type==3){
+		if(sm.type==3){
 			//todo: now health_0 doesn't do that
 			werase(message_win);
 			box(message_win, 0 , 0);	
@@ -108,7 +109,7 @@ void *recv_update(void *arg)
 			mvwprintw(message_win, 2,1,"Exiting");
 			wrefresh(message_win);	
 			sleep(5);
-			return 0;
+			exit(0);//return 0;
 		}
 		count=0;	// update screen and players health
 
@@ -117,24 +118,26 @@ void *recv_update(void *arg)
 		werase(message_win);
 		box(message_win, 0 , 0);	
 		box(my_win, 0 , 0);	
-
+		
+		mvwprintw(message_win, 1,1,"Message sent: %d %c", cm.type, cm.arg);
 		for(int i=0; i<MAX_PLAYERS; i++){ 	//update the players on screen
-			if(sm->players[i].c!='\0' && sm->players[i].health_bar>0){
-				draw_player(my_win, &sm->players[i], true);
+			if(sm.players[i].c!='\0' && sm.players[i].health_bar>0){
+				draw_player(my_win, &sm.players[i], true);
 				count++;
-				mvwprintw(message_win, count+1, 1, "%c %d", sm->players[i].c, sm->players[i].health_bar);
+				mvwprintw(message_win, count+1, 1, "%c %d", sm.players[i].c, sm.players[i].health_bar);
 			}
 		}
 		for(int i=0; i<MAX_PRIZES; i++){	//update the prizes on screen
-			if(sm->prizes[i].c!='\0'){
-				draw_player(my_win, &sm->prizes[i], true);
+			if(sm.prizes[i].c!='\0'){
+				draw_player(my_win, &sm.prizes[i], true);
 			}
 		}
 		for(int i=0; i<MAX_BOTS; i++){ 		//update the bots on screen
-			if(sm->bots[i].c!='\0'){
-				draw_player(my_win, &sm->bots[i], true);
+			if(sm.bots[i].c!='\0'){
+				draw_player(my_win, &sm.bots[i], true);
 			}
 		}
+		wrefresh(message_win);		
 	}
 	return NULL;
 }
@@ -142,8 +145,8 @@ void *recv_update(void *arg)
 
 int main(int argc, char* argv[]){
 
-	server_message sm;
-	client_message cm;
+	
+	//client_message cm;
 	int key, count = 0;
 	pthread_t id;
 
@@ -221,7 +224,7 @@ int main(int argc, char* argv[]){
 	}
 
 	cm.type = 1;
-	pthread_create(&id, NULL, recv_update, &sm); 
+	pthread_create(&id, NULL, recv_update, NULL); 
 		
 	while(key != 27 && key!= 'q'){ //awaits movement updates until disconnection or health_0
         	key = wgetch(my_win);
