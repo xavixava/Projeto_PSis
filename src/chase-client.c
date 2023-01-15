@@ -192,13 +192,15 @@ int main(int argc, char* argv[]){
 	n = read(fd, &sm, sizeof(server_message));
 	// todo: add verification
 	if(n == -1)perror("Recv error(please press ctrl+C)");
-	else if(sm.type==1)	// there are already 10 players
+	else if(sm.type==1)	// field is full
 	{
 		mvwprintw(message_win, 1,1,"Server full");
 		exit(0);
-	}	
-	mvwprintw(message_win, 1,1,"Conn Successful");
-	wrefresh(message_win);	
+	}
+	else if(sm.type==0){ // player was accepted
+		mvwprintw(message_win, 1,1,"Conn Successful");
+		wrefresh(message_win);	
+	}
 
 	werase(message_win);
 	box(message_win, 0 , 0);	
@@ -275,5 +277,6 @@ int main(int argc, char* argv[]){
 
 	sleep(2);	
 	close(fd);
+	sleep(2);	
 	return 0;
 }

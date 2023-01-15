@@ -19,7 +19,7 @@ typedef struct client_message{	//later on define field status messages
 } client_message;
 
 typedef struct server_message{	//later on define field status messages
-    int type; // 0-conection accepted, 1-no more characters, 2-refusing char, 3-Health_0, 4-field_update
+    int type; // 0-conection accepted, 1-field is full, 2-to do: disconnect from Health_0, 3-Health_0, 4-field_update
     player_position_t players[MAX_PLAYERS];
     player_position_t bots[MAX_BOTS];
     player_position_t prizes[MAX_PRIZES]; // number of elements to be able to receive field status message
