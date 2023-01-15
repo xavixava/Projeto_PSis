@@ -10,7 +10,7 @@ Project by:
 
 ## Required knowledge
 
-Since you might have more than 1 player, it creates the need to use threads. Unix sockets are used to comunicate between client and server.
+Since you might have more than 1 player, it creates the need to use threads. Inet sockets are used to comunicate between client and server.
 
 ## Get Started 
 
@@ -20,16 +20,8 @@ make
 
 #run client and server in different windows
 #the programs necessary for client and server are in different directories
-./client/chase-client
-./server/server
+./client/chase-client <server_ip> <server_port>
+./server/server <server_port>
 
-#bot-client and prize-generator will be needed for the game to function properly
-#both of these programs will exit if server is shutdown
-./server/prize-generator
-./server/bot-client /tmp/server_sock <number of bots>
-
-#or use one of the predetermined modes
-make easy-run
-make hard-run
 
 ```
