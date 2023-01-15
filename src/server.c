@@ -105,14 +105,14 @@ int generate_prize()
 char generate_player_char()
 {
 	int player_num;
-	char player = 'a';
-	while (search_player(sm.players, player)!=-1)
+	char player;
+	do
 	{
 		player_num = (random()%52);
 		if(player_num < 26)
 			player ='a' + player_num;
-		else player = 'A' + player_num;	
-	}
+		else player = 'A' + player_num - 26;	
+	}while (search_player(sm.players, player)!=-1);
 	return player;
 }
 
