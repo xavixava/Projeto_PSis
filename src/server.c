@@ -22,6 +22,7 @@ WINDOW *my_win;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_t id[308];  // 0: prize_gen; 1: bot_gen; 2: update players; 3: tcp listener
 cond_t cv[MAX_PLAYERS];
+pthread_cond_t queue_cv;
 
 short bot_nr;
 
@@ -53,7 +54,7 @@ void error_msg(char c)
 void *bot_gen(void *arg)
 {	
 	char *bot_vector = arg;
-	int i, direction;
+	int i, direction, ret;
 	player_position_t bot_warn;
 	
 	bot_warn.x = 0;
@@ -89,6 +90,7 @@ void *bot_gen(void *arg)
 		// warn queue
 		pthread_mutex_lock(&lock);
 		InsertLast(q, &bot_warn);
+		ret = pthread_cond_signal(&queue_cv);
 		pthread_mutex_unlock(&lock);
 	}
 
@@ -108,8 +110,8 @@ char generate_player_char()
 	char player = 'a';
 	while (search_player(sm.players, player)!=-1)
 	{
-		player_num = (random()%52);
-		if(player_num < 26)
+		player_num = (random()%46);
+		if(player_num < 23)
 			player ='a' + player_num;
 		else player = 'A' + player_num;	
 	}
@@ -169,7 +171,7 @@ void *hp_o(void *arg)
 
 void *prize_gen(void *arg)
 {	
-	int i; 
+	int i, ret; 
 	player_position_t prize[MAX_PRIZES];
 
 	srand(time(NULL));
@@ -178,7 +180,10 @@ void *prize_gen(void *arg)
 	{
 		prize[i].c = '0' + generate_prize();	
 		// put prize in the queue
+		pthread_mutex_lock(&lock);
 		InsertLast(q, &prize[i]);
+		ret = pthread_cond_signal(&queue_cv);
+		pthread_mutex_unlock(&lock);
 	}
 
 	while (1)	// sends prizes every 5 seconds
@@ -188,6 +193,7 @@ void *prize_gen(void *arg)
 		// put prize in the queue
 		pthread_mutex_lock(&lock);
 		InsertLast(q, &prize[i]);
+		ret = pthread_cond_signal(&queue_cv);
 		pthread_mutex_unlock(&lock);
     
 		i = (i >= 9) ? 0 : i+1;
@@ -362,7 +368,7 @@ void draw_player(WINDOW *win, player_position_t * player, int delete){
     if(p_x<=0 || p_x >= WINDOW_SIZE || p_y >= WINDOW_SIZE || p_y <= 0) mvwprintw(message_win, 3, 1, "c:%c x:%d y:%d", ch, p_x, p_y);
     else
     {	    
-	mvwprintw(message_win, 3, 1, "c:%c x:%d y:%d", ch, p_x, p_y);
+	// mvwprintw(message_win, 3, 1, "c:%c x:%d y:%d", ch, p_x, p_y);
     	wmove(win, p_y, p_x);
     	waddch(win,ch);
     	wrefresh(win);
@@ -480,16 +486,18 @@ void *computation(void *arg)
 {
 	char *bot_vector = arg;
 	player_position_t *current_player;
-	int i, j, k, temp_x, temp_y, rammed_player;
+	int i, j, ret, k, temp_x, temp_y, rammed_player;
   	pthread_t updater, hpo;
   
 	current_player = NULL;
+	ret = pthread_cond_init(&queue_cv, NULL);
 	
 	while(1)
 	{
 		pthread_mutex_lock(&lock);
 		// todo: if empty add wait here
 		current_player = GetFirst(q);  // gets most prioritary element from FIFO
+		if(current_player==NULL) ret = pthread_cond_wait(&queue_cv, &lock);
 		pthread_mutex_unlock(&lock);
 		
 
@@ -630,6 +638,7 @@ void *computation(void *arg)
 		// wrefresh(message_win);
 		// wrefresh(my_win);
 	}
+	pthread_cond_destroy(&queue_cv);	
 }
 
 player_position_t *alloc()
@@ -661,7 +670,7 @@ void *cli_reciever(void *arg)
 		// wclrtoeol(message_win);  
 		// werase(message_win);
 		// box(message_win, 0 , 0);	
-		mvwprintw(message_win, 6, 1, "%d %c", cm.type, cm.arg);
+		// mvwprintw(message_win, 6, 1, "%d %c", cm.type, cm.arg);
 		switch (cm.type){
 			case 0: //Message about player's connection
 				if(cm.arg == 'c') // connect player
@@ -718,6 +727,7 @@ void *cli_reciever(void *arg)
 
 					pthread_mutex_lock(&lock);
 					InsertLast(q, item);
+					n = pthread_cond_signal(&queue_cv);
 					pthread_mutex_unlock(&lock);
 				}
 			break;

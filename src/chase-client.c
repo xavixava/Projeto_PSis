@@ -98,9 +98,9 @@ void *wait_ten(void *arg)
 		werase(message_win);
 		box(message_win, 0 , 0);	
   		mvwprintw(message_win, 1,1,"HP - 0");
-		mvwprintw(message_win, 2,1, "\"c\"-continue");
-		mvwprintw(message_win, 2,1,"\"c\"-continue");
-		mvwprintw(message_win, 3,1,"%d seconds left", 10-i);
+		mvwprintw(message_win, 2,1, "\"q\"-quit");
+		mvwprintw(message_win, 3,1,"\"c\"-continue");
+		mvwprintw(message_win, 4,1,"%d seconds left", 10-i);
 		wrefresh(message_win);
 		sleep(1);	
 	}
