@@ -73,10 +73,10 @@ int create_socket(char *ip, int port){
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = inet_addr(ip);
 	address.sin_port = htons(port);
-
+	
 	int conn_status = connect(sock_fd, (struct sockaddr *)&address, sizeof(address));
- 
-    // Check for connection error
+    
+	// Check for connection error
     if (conn_status < 0) {
         perror("Error\n");
 		    exit(0);
@@ -136,6 +136,8 @@ void *recv_update(void *arg)
 			}
 		}
 	}
+	wrefresh(message_win);	
+	wrefresh(my_win);	
 	return NULL;
 }
 
